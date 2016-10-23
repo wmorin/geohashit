@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import json
 
 from flask import Flask, request, jsonify
@@ -130,6 +128,3 @@ def simpleshaper():
     multi = MultiPolygon([polys])
 
     return jsonify(geojson=multi)
-
-if __name__ == "__main__":
-    app.run(debug=True)
