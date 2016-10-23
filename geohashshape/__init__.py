@@ -1,0 +1,1 @@
+from geohash_shape import geohash_shape
