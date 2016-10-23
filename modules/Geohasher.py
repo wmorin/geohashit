@@ -79,3 +79,9 @@ class Geohasher:
             ])
 
         return MultiPolygon([polys])
+
+
+    @staticmethod
+    def geohash_geojson(geojson):
+        geohasher = Geohasher()
+        return geohasher.json_to_geohashes(data)
