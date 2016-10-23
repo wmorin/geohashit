@@ -1,4 +1,4 @@
-# Geohash'it
+# Geohash'it [![Build Status](https://travis-ci.org/wmorin/geohashit.svg?branch=master)](https://travis-ci.org/wmorin/geohashit)
 
 Geohash'it is a simple API server to help you get geohashed shapes. It could be countries, cities or whatever geometry you would like in a simplified fashion. It help you create efficient geo index.
 
