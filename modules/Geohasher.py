@@ -1,9 +1,8 @@
 from geohash import bbox as geohash_bbox
-from geohash import decode as geohash_decode
-from geohash import encode as geohash_encode
 from geohashshape import geohash_shape
 from geojson import MultiPolygon
 from shapely.geometry import shape
+
 
 class Geohasher:
     def _get_geohash_chars(self):
@@ -13,7 +12,6 @@ class Geohasher:
             'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r',
             's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
         ]
-
 
     def reduce_geohash(self, geohashes, precision=12):
         if precision == 1:
@@ -64,7 +62,6 @@ class Geohasher:
 
         return geohashes
 
-
     def geohash_to_multipolygon(self, geohashes):
         polys = []
 
@@ -80,8 +77,8 @@ class Geohasher:
 
         return MultiPolygon([polys])
 
-
     @staticmethod
     def geohash_geojson(geojson):
         geohasher = Geohasher()
-        return geohasher.json_to_geohashes(data)
+
+        return geohasher.json_to_geohashes(geojson)

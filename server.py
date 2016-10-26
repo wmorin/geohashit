@@ -1,6 +1,5 @@
-import json
-
 from flask import Flask, request, jsonify
+from geohash import encode as geohash_encode
 from modules.Geohasher import Geohasher
 from modules.Nominatim import Nominatim
 
@@ -13,9 +12,9 @@ def multipolygon_from_geohash():
 
     nominatim = Nominatim()
     city = nominatim.get_city_from_geohash(geohash)
-    geohashes = Geohasher.geohash_geojson(json.loads(json_data))
+    geohashes = Geohasher.geohash_geojson(city.get_geometry())
 
-    multi = geohasher.geohash_to_multipolygon(geohashes)
+    multi = Geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)
 
@@ -27,9 +26,9 @@ def multipolygon_from_point(city_name, country_code):
 
     nominatim = Nominatim()
     city = nominatim.get_city_from_point(geohash_encode(lat, lon, 6))
-    geohashes = Geohasher.geohash_geojson(json.loads(json_data))
+    geohashes = Geohasher.geohash_geojson(city.get_geometry())
 
-    multi = geohasher.geohash_to_multipolygon(geohashes)
+    multi = Geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)
 
@@ -41,16 +40,17 @@ def multipolygon_from_city():
 
     nominatim = Nominatim()
     city = nominatim.get_city_from_name(city_name, country_code)
-    geohashes = Geohasher.geohash_geojson(json.loads(json_data))
+    geohashes = Geohasher.geohash_geojson(city.get_geometry())
 
-    multi = geohasher.geohash_to_multipolygon(geohashes)
+    multi = Geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)
+
 
 @app.route("/geohash_from_geojson", methods=['POST'])
 def geohash_from_geojson():
     json_data = request.form['geojson']
-    geohashes = Geohasher.geohash_geojson(json.loads(json_data))
+    geohashes = Geohasher.geohash_geojson(json_data)
 
     return jsonify(geohashes=geohashes)
 
@@ -58,8 +58,8 @@ def geohash_from_geojson():
 @app.route("/multipolygon_from_geojson", methods=['POST'])
 def multipolygon_from_geojson():
     json_data = request.form['geojson']
-    geohashes = Geohasher.geohash_geojson(json.loads(json_data))
+    geohashes = Geohasher.geohash_geojson(json_data)
 
-    multi = geohasher.geohash_to_multipolygon(geohashes)
+    multi = Geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)

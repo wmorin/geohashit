@@ -1,13 +1,17 @@
 import requests
 
+from geohash import decode as geohash_decode
 from modules.City import City
 
+
 class Nominatim:
+    def __init__(self, url='http://nominatim.openstreetmap.org'):
+        self.url = url
+
     def get_city_from_geohash(self, geohash):
         lat, lon = geohash_decode(geohash)
 
         return self.get_city_from_point(lat, lon)
-
 
     def get_city_from_point(self, lat, lon):
         payload = {
@@ -16,7 +20,7 @@ class Nominatim:
             'lat': lat,
             'lon': lon,
         }
-        r = requests.get('http://nominatim.openstreetmap.org/reverse', params=payload)
+        r = requests.get(self.url + '/reverse', params=payload)
         content = r.json()
 
         if 'village' in content['address']:
@@ -28,7 +32,6 @@ class Nominatim:
 
         return self.get_city_from_name(city_name, country_code)
 
-
     def get_city_from_name(self, city_name, country_code):
         payload = {
             'city': city_name,
@@ -38,7 +41,7 @@ class Nominatim:
             'polygon_geojson': 1,
         }
 
-        r = requests.get('http://nominatim.openstreetmap.org/search', params=payload)
+        r = requests.get(self.url + '/search', params=payload)
         content = r.json()
 
         city = City()
