@@ -32,28 +32,41 @@ class Nominatim:
 
         return self.get_city_from_name(city_name, country_code)
 
+    def _get_city(self, cities):
+        for city in cities:
+            if city['geojson']['type'] == 'Point':
+                continue
+
+            if city['type'] == 'city':
+                return city
+
+            if city['type'] == 'administrative':
+                return city
+
+        return cities
+
     def get_city_from_name(self, city_name, country_code):
         payload = {
             'city': city_name,
             'countrycodes': country_code,
             'format': 'json',
-            'limit': 1,
+            'limit': 10,
             'polygon_geojson': 1,
         }
 
         r = requests.get(self.url + '/search', params=payload)
-        content = r.json()
+        content = self._get_city(r.json())
 
         city = City()
-        city.set_place_id(content[0]['place_id'])
-        city.set_centroid(content[0]['lat'], content[0]['lon'])
+        city.set_place_id(content['place_id'])
+        city.set_centroid(content['lat'], content['lon'])
         city.set_geometry({
             "type": "FeatureCollection",
             "features": [
                 {
                     "type": "Feature",
                     "properties": {},
-                    "geometry": content[0]['geojson']
+                    "geometry": content['geojson']
                 }
             ]
         })

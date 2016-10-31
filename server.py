@@ -14,7 +14,8 @@ def multipolygon_from_geohash():
     city = nominatim.get_city_from_geohash(geohash)
     geohashes = Geohasher.geohash_geojson(city.get_geometry())
 
-    multi = Geohasher.geohash_to_multipolygon(geohashes)
+    geohasher = Geohasher()
+    multi = geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)
 
@@ -28,6 +29,7 @@ def multipolygon_from_point(city_name, country_code):
     city = nominatim.get_city_from_point(geohash_encode(lat, lon, 6))
     geohashes = Geohasher.geohash_geojson(city.get_geometry())
 
+    geohasher = Geohasher()
     multi = Geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)
