@@ -25,6 +25,8 @@ class Nominatim:
 
         if 'village' in content['address']:
             city_name = content['address']['village']
+        if 'town' in content['address']:
+            city_name = content['address']['town']
         else:
             city_name = content['address']['city']
 
