@@ -8,6 +8,9 @@ app = Flask(__name__)
 
 @app.route("/multipolygon_from_geohash", methods=['GET'])
 def multipolygon_from_geohash():
+    """
+    Get multipolygon geohashes of a city from a given geohash
+    """
     geohash = request.args.get('geohash')
 
     nominatim = Nominatim()
@@ -22,6 +25,9 @@ def multipolygon_from_geohash():
 
 @app.route("/multipolygon_from_point", methods=['GET'])
 def multipolygon_from_point(city_name, country_code):
+    """
+    Get multipolygon geohashes of a city from a given point
+    """
     lat = request.args.get('lat')
     lon = request.args.get('lon')
 
@@ -37,6 +43,9 @@ def multipolygon_from_point(city_name, country_code):
 
 @app.route("/multipolygon_from_city", methods=['GET'])
 def multipolygon_from_city():
+    """
+    Get multipolygon geohashes of a city from a given city and country
+    """
     city_name = request.args.get('city_name')
     country_code = request.args.get('country_code')
 
@@ -51,6 +60,9 @@ def multipolygon_from_city():
 
 @app.route("/geohash_from_geojson", methods=['POST'])
 def geohash_from_geojson():
+    """
+    Get geohashes that form a city from a given geohash
+    """
     json_data = request.form['geojson']
     geohashes = Geohasher.geohash_geojson(json_data)
 
@@ -59,6 +71,9 @@ def geohash_from_geojson():
 
 @app.route("/multipolygon_from_geojson", methods=['POST'])
 def multipolygon_from_geojson():
+    """
+    Get geohashes that form the given geojson
+    """
     json_data = request.form['geojson']
     geohashes = Geohasher.geohash_geojson(json_data)
 
