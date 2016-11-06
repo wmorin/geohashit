@@ -24,19 +24,19 @@ def multipolygon_from_geohash():
 
 
 @app.route("/multipolygon_from_point", methods=['GET'])
-def multipolygon_from_point(city_name, country_code):
+def multipolygon_from_point():
     """
     Get multipolygon geohashes of a city from a given point
     """
-    lat = request.args.get('lat')
-    lon = request.args.get('lon')
+    lat = float(request.args.get('lat'))
+    lon = float(request.args.get('lon'))
 
     nominatim = Nominatim()
-    city = nominatim.get_city_from_point(geohash_encode(lat, lon, 6))
+    city = nominatim.get_city_from_point(lat, lon)
     geohashes = Geohasher.geohash_geojson(city.get_geometry())
 
     geohasher = Geohasher()
-    multi = Geohasher.geohash_to_multipolygon(geohashes)
+    multi = geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)
 
