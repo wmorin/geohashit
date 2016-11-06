@@ -23,6 +23,11 @@ class Nominatim:
         r = requests.get(self.url + '/reverse', params=payload)
         content = r.json()
 
+        county = ''
+
+        if 'county' in content['address']:
+            county = content['address']['county']
+
         if 'village' in content['address']:
             city_name = content['address']['village']
         elif 'town' in content['address']:
@@ -30,9 +35,15 @@ class Nominatim:
         else:
             city_name = content['address']['city']
 
+        print '-----------extracted-city-name--------------'
+        print city_name
+
         country_code = content['address']['country_code']
 
-        return self.get_city_from_name(city_name, country_code)
+        if county != '':
+            return self.get_city_from_name(city_name, country_code, county)
+        else:
+            return self.get_city_from_name(city_name, country_code)
 
     def _get_city(self, cities):
         for city in cities:
@@ -43,11 +54,16 @@ class Nominatim:
                 return city
 
             if city['type'] == 'administrative':
+                print '-----------importance------------'
+                print city['importance']
+                return city
+
+            if city['type'] == 'residential':
                 return city
 
         return cities
 
-    def get_city_from_name(self, city_name, country_code):
+    def get_city_from_name(self, city_name, country_code, county_name=''):
         payload = {
             'city': city_name,
             'countrycodes': country_code,
@@ -55,6 +71,9 @@ class Nominatim:
             'limit': 10,
             'polygon_geojson': 1,
         }
+
+        if county_name != '':
+            payload['county'] = county_name
 
         r = requests.get(self.url + '/search', params=payload)
         content = self._get_city(r.json())
