@@ -2,6 +2,7 @@ import requests
 
 from geohash import decode as geohash_decode
 from modules.City import City
+from modules.Country import Country
 
 
 class Nominatim:
@@ -12,6 +13,20 @@ class Nominatim:
         lat, lon = geohash_decode(geohash)
 
         return self.get_city_from_point(lat, lon)
+
+    def get_country_from_point(self, lat, lon):
+        payload = {
+            'format': 'json',
+            'accept-language': 'en_us,en,fr',
+            'lat': lat,
+            'lon': lon,
+        }
+        r = requests.get(self.url + '/reverse', params=payload)
+        content = r.json()
+        country_code = content['address']['country_code']
+        country_name = content['address']['country']
+
+        return self.get_country_from_name(country_name, country_code)
 
     def get_city_from_point(self, lat, lon):
         payload = {
@@ -62,6 +77,34 @@ class Nominatim:
                 return city
 
         return cities
+
+    def get_country_from_name(self, country_name, country_code):
+        payload = {
+            'countrycodes': country_code,
+            'country': country_name,
+            'format': 'json',
+            'limit': 10,
+            'polygon_geojson': 1,
+        }
+
+        r = requests.get(self.url + '/search', params=payload)
+        content = self._get_city(r.json())
+
+        country = Country()
+        country.set_place_id(content['place_id'])
+        country.set_centroid(content['lat'], content['lon'])
+        country.set_geometry({
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": content['geojson']
+                }
+            ]
+        })
+
+        return country
 
     def get_city_from_name(self, city_name, country_code, county_name=''):
         payload = {

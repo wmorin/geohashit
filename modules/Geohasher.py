@@ -1,7 +1,9 @@
-from geohash import bbox as geohash_bbox
-from geohashshape import geohash_shape
+import shapely
+
+from geohash import bbox, decode
 from geojson import MultiPolygon
-from shapely.geometry import shape
+from shapely.geometry import box, Point, Polygon, mapping
+from shapely.ops import cascaded_union
 
 
 class Geohasher:
@@ -13,72 +15,70 @@ class Geohasher:
             's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
         ]
 
-    def reduce_geohash(self, geohashes, precision=12):
-        if precision == 1:
-            return geohashes
+    def geohash_shape(self, shape, precision=12, mode='center', level=1, prefix=''):
+        geohashes = []
 
-        chars = self._get_geohash_chars()
+        for char in self._get_geohash_chars():
+            hash = prefix + char
 
-        filtered = []
-        excluded = []
+            p = bbox(hash)
+            box_shape = box(p['w'], p['s'], p['e'], p['n'])
 
-        for geohash in geohashes:
-            if len(geohash) < precision:
-                filtered.append(geohash)
-                continue
+            if mode == 'inside':
+                if shape.contains(box_shape):
+                    geohashes.extend([hash])
+                elif level < precision and box_shape.intersects(shape):
+                    geohashes.extend(self.geohash_shape(shape, precision, mode, level + 1, hash))
 
-            if geohash in excluded:
-                continue
+            elif mode == 'center':
+                if shape.contains(box_shape):
+                    geohashes.extend([hash])
+                elif level < precision and box_shape.intersects(shape):
+                    geohashes.extend(self.geohash_shape(shape, precision, mode, level + 1, hash))
+                elif level == precision:
+                    (lat, lon) = decode(str(hash))
 
-            base = geohash[:-1]
-            keep = False
+                    if shape.contains(Point(lon, lat)):
+                        geohashes.append(hash)
 
-            for char in chars:
-                if (base + char) not in geohashes:
-                    keep = True
-
-            if keep is True:
-                filtered.append(geohash)
-                continue
-
-            filtered.append(base)
-
-            for char in chars:
-                excluded.append(base + char)
-
-        return self.reduce_geohash(filtered, precision - 1)
-
-    def json_to_geohashes(self, data, simplify=True):
-        for f in data['features']:
-            s = shape(f['geometry'])
-
-        precision = 6
-        mode = 'center'
-        threshold = None
-        geohashes = geohash_shape(s, precision, mode, threshold)
-
-        if simplify is True:
-            return self.reduce_geohash(geohashes)
+            elif mode == 'intersect':
+                if shape.contains(box_shape):
+                    geohashes.extend([hash])
+                elif level < precision and box_shape.intersects(shape):
+                    geohashes.extend(self.geohash_shape(shape, precision, mode, level + 1, hash))
+                elif level == precision and box_shape.intersects(shape):
+                    geohashes.append(hash)
 
         return geohashes
 
-    def geohash_to_multipolygon(self, geohashes):
+    def json_to_geohashes(self, data, precision):
+        for f in data['features']:
+            s = shapely.geometry.shape(f['geometry'])
+
+        return self.geohash_shape(s, precision)
+
+    def geohash_to_multipolygon(self, geohashes, simplify=False):
         polys = []
 
         for g in geohashes:
-            box = geohash_bbox(g)
-            polys.append([
+            box = bbox(g)
+
+            polys.append(Polygon([
                 (box['w'], box['n']),
                 (box['e'], box['n']),
                 (box['e'], box['s']),
                 (box['w'], box['s']),
-                (box['w'], box['n']),
-            ])
+            ]))
 
-        return MultiPolygon([polys])
+        if simplify:
+            polys = cascaded_union(polys)
+        else:
+            polys = MultiPolygon(polys)
+
+        return mapping(polys)
 
     @staticmethod
-    def geohash_geojson(geojson):
+    def geohash_geojson(geojson, precision):
         geohasher = Geohasher()
 
-        return geohasher.json_to_geohashes(geojson)
+        return geohasher.json_to_geohashes(geojson, precision)

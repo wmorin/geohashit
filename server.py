@@ -30,16 +30,41 @@ def multipolygon_from_point():
     """
     lat = float(request.args.get('lat'))
     lon = float(request.args.get('lon'))
+    poly_type = request.args.get('type')
+    precision = int(request.args.get('precision'))
+    simplify = True if str(request.args.get('simplify')) == str(1) else False
 
     nominatim = Nominatim()
-    city = nominatim.get_city_from_point(lat, lon)
-    geohashes = Geohasher.geohash_geojson(city.get_geometry())
+
+    if poly_type == 'city':
+        poly = nominatim.get_city_from_point(lat, lon)
+        geohashes = Geohasher.geohash_geojson(poly.get_geometry(), precision)
+    elif poly_type == 'country':
+        poly = nominatim.get_country_from_point(lat, lon)
+        geohashes = Geohasher.geohash_geojson(poly.get_geometry(), precision)
+
+    geohasher = Geohasher()
+    multi = geohasher.geohash_to_multipolygon(geohashes, simplify)
+
+    return jsonify(geojson=multi)
+
+
+@app.route("/multipolygon_country_from_point", methods=['GET'])
+def multipolygon_country_from_point():
+    """
+    Get multipolygon geohashes of a city from a given point
+    """
+    lat = float(request.args.get('lat'))
+    lon = float(request.args.get('lon'))
+
+    nominatim = Nominatim()
+    country = nominatim.get_country_from_point(lat, lon)
+    geohashes = Geohasher.geohash_geojson(country.get_geometry())
 
     geohasher = Geohasher()
     multi = geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)
-
 
 @app.route("/multipolygon_from_city", methods=['GET'])
 def multipolygon_from_city():
