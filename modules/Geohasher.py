@@ -34,7 +34,8 @@ class Geohasher:
                 if shape.contains(box_shape):
                     geohashes.extend([hash])
                 elif level < precision and box_shape.intersects(shape):
-                    geohashes.extend(self.geohash_shape(shape, precision, mode, level + 1, hash))
+                    sub_shape = box_shape.intersection(shape)
+                    geohashes.extend(self.geohash_shape(sub_shape, precision, mode, level + 1, hash))
                 elif level == precision:
                     (lat, lon) = decode(str(hash))
 
