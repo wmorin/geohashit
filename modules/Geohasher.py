@@ -52,7 +52,7 @@ class Geohasher:
 
         return geohashes
 
-    def json_to_geohashes(self, data, precision):
+    def geojson_to_geohashes(self, data, precision):
         for f in data['features']:
             s = shapely.geometry.shape(f['geometry'])
 
@@ -82,4 +82,4 @@ class Geohasher:
     def geohash_geojson(geojson, precision):
         geohasher = Geohasher()
 
-        return geohasher.json_to_geohashes(geojson, precision)
+        return geohasher.geojson_to_geohashes(geojson, precision)
