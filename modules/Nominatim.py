@@ -69,8 +69,6 @@ class Nominatim:
                 return city
 
             if city['type'] == 'administrative':
-                print '-----------importance------------'
-                print city['importance']
                 return city
 
             if city['type'] == 'residential':
