@@ -1,6 +1,6 @@
 import requests
 
-from geohash import decode as geohash_decode
+import pygeohash
 from modules.City import City
 from modules.Country import Country
 
@@ -10,7 +10,9 @@ class Nominatim:
         self.url = url
 
     def get_city_from_geohash(self, geohash):
-        lat, lon = geohash_decode(geohash)
+        decoded = pygeohash.decode(geohash)
+        lat = decoded.latitude
+        lon = decoded.longitude
 
         return self.get_city_from_point(lat, lon)
 
@@ -50,8 +52,8 @@ class Nominatim:
         else:
             city_name = content['address']['city']
 
-        print '-----------extracted-city-name--------------'
-        print city_name
+        print('-----------extracted-city-name--------------')
+        print(city_name)
 
         country_code = content['address']['country_code']
 
