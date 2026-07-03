@@ -17,31 +17,31 @@ from geohashit.validation import (
 
 API_ENDPOINTS = [
     {
-        'path': '/multipolygon_from_point',
+        'path': '/multipolygons/point',
         'methods': ['GET'],
         'description': (
             'Resolve a city or country from a point and return geohash polygons.'
         ),
     },
     {
-        'path': '/multipolygon_from_city',
+        'path': '/multipolygons/city',
         'methods': ['GET'],
         'description': 'Resolve a named city and return geohash polygons.',
     },
     {
-        'path': '/multipolygon_from_geohash',
+        'path': '/multipolygons/geohash',
         'methods': ['GET'],
         'description': (
             'Resolve the city containing a geohash and return geohash polygons.'
         ),
     },
     {
-        'path': '/geohash_from_geojson',
+        'path': '/geohashes/geojson',
         'methods': ['POST'],
         'description': 'Return geohashes covering a submitted GeoJSON shape.',
     },
     {
-        'path': '/multipolygon_from_geojson',
+        'path': '/multipolygons/geojson',
         'methods': ['POST'],
         'description': 'Return geohash polygons for a submitted GeoJSON shape.',
     },
@@ -61,23 +61,24 @@ def create_app():
 def register_error_handlers(app):
     @app.errorhandler(ValidationError)
     def handle_validation_error(error):
-        return jsonify(error=str(error)), 400
+        return error_response('validation_error', str(error), 400)
 
     @app.errorhandler(RequestEntityTooLarge)
     def handle_request_too_large(error):
-        return jsonify(error='request body is too large'), 413
+        return error_response('payload_too_large', 'request body is too large', 413)
 
     @app.errorhandler(NominatimLookupError)
     def handle_nominatim_lookup_error(error):
-        return jsonify(error=str(error)), 404
+        return error_response('place_not_found', str(error), 404)
 
     @app.errorhandler(NominatimError)
     def handle_nominatim_error(error):
-        return jsonify(error=str(error)), 502
+        return error_response('upstream_error', str(error), 502)
 
     @app.errorhandler(HTTPException)
     def handle_http_error(error):
-        return jsonify(error=error.description), error.code
+        code = error.name.lower().replace(' ', '_')
+        return error_response(code, error.description, error.code)
 
 
 def register_routes(app):
@@ -94,8 +95,8 @@ def register_routes(app):
     def health():
         return jsonify(status='ok')
 
-    @app.route('/multipolygon_from_geohash', methods=['GET'])
-    def multipolygon_from_geohash():
+    @app.route('/multipolygons/geohash', methods=['GET'])
+    def geohash_multipolygon():
         geohash = get_geohash_arg('geohash')
         precision = get_precision_arg(default=DEFAULT_PRECISION)
 
@@ -104,8 +105,8 @@ def register_routes(app):
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes))
 
-    @app.route('/multipolygon_from_point', methods=['GET'])
-    def multipolygon_from_point():
+    @app.route('/multipolygons/point', methods=['GET'])
+    def point_multipolygon():
         lat = get_float_arg('lat', -90, 90)
         lon = get_float_arg('lon', -180, 180)
         poly_type = get_choice_arg('type', ('city', 'country'))
@@ -122,8 +123,8 @@ def register_routes(app):
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes, simplify))
 
-    @app.route('/multipolygon_from_city', methods=['GET'])
-    def multipolygon_from_city():
+    @app.route('/multipolygons/city', methods=['GET'])
+    def city_multipolygon():
         city_name = get_required_arg('city_name')
         country_code = get_required_arg('country_code')
         precision = get_precision_arg(default=DEFAULT_PRECISION)
@@ -133,20 +134,24 @@ def register_routes(app):
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes))
 
-    @app.route('/geohash_from_geojson', methods=['POST'])
-    def geohash_from_geojson_route():
+    @app.route('/geohashes/geojson', methods=['POST'])
+    def geojson_geohashes():
         json_data = get_geojson_payload()
         precision = get_precision_arg(default=DEFAULT_PRECISION)
 
         return jsonify(geohashes=geohash_geojson(json_data, precision))
 
-    @app.route('/multipolygon_from_geojson', methods=['POST'])
-    def multipolygon_from_geojson():
+    @app.route('/multipolygons/geojson', methods=['POST'])
+    def geojson_multipolygon():
         json_data = get_geojson_payload()
         precision = get_precision_arg(default=DEFAULT_PRECISION)
         geohashes = geohash_geojson(json_data, precision)
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes))
+
+
+def error_response(code, message, status):
+    return jsonify(error={'code': code, 'message': message, 'status': status}), status
 
 
 def geohash_geojson(json_data, precision):

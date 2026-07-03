@@ -16,6 +16,18 @@ from geohashit.nominatim import (
 from server import app
 
 
+def assert_error(response, status, code, message):
+    assert response.status_code == status
+    assert response.is_json
+    assert response.get_json() == {
+        'error': {
+            'code': code,
+            'message': message,
+            'status': status,
+        },
+    }
+
+
 def test_server_imports_under_python3():
     assert app.name == 'geohashit'
 
@@ -27,8 +39,12 @@ def test_service_index_lists_api_endpoints():
     payload = response.get_json()
     assert payload['name'] == "Geohash'it"
     assert payload['status'] == 'ok'
-    assert '/geohash_from_geojson' in [
-        endpoint['path'] for endpoint in payload['endpoints']
+    assert [endpoint['path'] for endpoint in payload['endpoints']] == [
+        '/multipolygons/point',
+        '/multipolygons/city',
+        '/multipolygons/geohash',
+        '/geohashes/geojson',
+        '/multipolygons/geojson',
     ]
 
 
@@ -42,24 +58,26 @@ def test_health_route_returns_json_status():
 def test_unknown_route_returns_json_404():
     response = app.test_client().get('/does-not-exist')
 
-    assert response.status_code == 404
-    assert response.is_json
-    assert response.get_json() == {
-        'error': (
+    assert_error(
+        response,
+        404,
+        'not_found',
+        (
             'The requested URL was not found on the server. If you entered the URL '
             'manually please check your spelling and try again.'
         ),
-    }
+    )
 
 
 def test_wrong_method_returns_json_405():
-    response = app.test_client().get('/geohash_from_geojson')
+    response = app.test_client().get('/geohashes/geojson')
 
-    assert response.status_code == 405
-    assert response.is_json
-    assert response.get_json() == {
-        'error': 'The method is not allowed for the requested URL.',
-    }
+    assert_error(
+        response,
+        405,
+        'method_not_allowed',
+        'The method is not allowed for the requested URL.',
+    )
 
 
 def test_geohash_to_multipolygon_returns_geojson_mapping():
@@ -71,65 +89,78 @@ def test_geohash_to_multipolygon_returns_geojson_mapping():
 
 def test_point_route_rejects_invalid_latitude():
     response = app.test_client().get(
-        '/multipolygon_from_point?lat=91&lon=2&type=city&precision=5'
+        '/multipolygons/point?lat=91&lon=2&type=city&precision=5'
     )
 
-    assert response.status_code == 400
-    assert response.get_json() == {'error': 'lat must be at most 90'}
+    assert_error(response, 400, 'validation_error', 'lat must be at most 90')
 
 
 def test_point_route_rejects_invalid_type():
     response = app.test_client().get(
-        '/multipolygon_from_point?lat=48&lon=2&type=county&precision=5'
+        '/multipolygons/point?lat=48&lon=2&type=county&precision=5'
     )
 
-    assert response.status_code == 400
-    assert response.get_json() == {'error': 'type must be one of: city, country'}
+    assert_error(
+        response,
+        400,
+        'validation_error',
+        'type must be one of: city, country',
+    )
 
 
 def test_point_route_rejects_high_precision():
     response = app.test_client().get(
-        '/multipolygon_from_point?lat=48&lon=2&type=city&precision=12'
+        '/multipolygons/point?lat=48&lon=2&type=city&precision=12'
     )
 
-    assert response.status_code == 400
-    assert response.get_json() == {'error': 'precision must be between 1 and 8'}
+    assert_error(
+        response,
+        400,
+        'validation_error',
+        'precision must be between 1 and 8',
+    )
 
 
 def test_geohash_route_rejects_invalid_geohash():
     response = app.test_client().get(
-        '/multipolygon_from_geohash?geohash=!!!!&precision=5'
+        '/multipolygons/geohash?geohash=!!!!&precision=5'
     )
 
-    assert response.status_code == 400
-    assert response.get_json() == {'error': 'geohash must be a valid geohash'}
+    assert_error(
+        response,
+        400,
+        'validation_error',
+        'geohash must be a valid geohash',
+    )
 
 
 def test_geojson_route_requires_geojson_form_field():
-    response = app.test_client().post('/geohash_from_geojson', data={})
+    response = app.test_client().post('/geohashes/geojson', data={})
 
-    assert response.status_code == 400
-    assert response.get_json() == {'error': 'geojson is required'}
+    assert_error(response, 400, 'validation_error', 'geojson is required')
 
 
 def test_geojson_route_rejects_malformed_json():
     response = app.test_client().post(
-        '/geohash_from_geojson?precision=5',
+        '/geohashes/geojson?precision=5',
         data={'geojson': '{bad'},
     )
 
-    assert response.status_code == 400
-    assert response.get_json() == {'error': 'geojson must be valid JSON'}
+    assert_error(response, 400, 'validation_error', 'geojson must be valid JSON')
 
 
 def test_geojson_route_rejects_invalid_geometry_type():
     response = app.test_client().post(
-        '/geohash_from_geojson?precision=5',
+        '/geohashes/geojson?precision=5',
         data={'geojson': '{"type":"Nope"}'},
     )
 
-    assert response.status_code == 400
-    assert response.get_json() == {'error': 'geojson contains invalid geometry'}
+    assert_error(
+        response,
+        400,
+        'validation_error',
+        'geojson contains invalid geometry',
+    )
 
 
 def geohash_feature(geohash):
@@ -203,9 +234,9 @@ def test_geohash_covering_small_polygon_performance_guard():
     assert time.perf_counter() - start < 0.25
 
 
-def test_geohash_from_geojson_accepts_json_string():
+def test_geojson_geohashes_accepts_json_string():
     response = app.test_client().post(
-        '/geohash_from_geojson?precision=5',
+        '/geohashes/geojson?precision=5',
         data={'geojson': json.dumps(geohash_feature('u09tv'))},
     )
 
@@ -213,9 +244,9 @@ def test_geohash_from_geojson_accepts_json_string():
     assert response.get_json() == {'geohashes': ['u09tv']}
 
 
-def test_geohash_from_geojson_accepts_point_geometry():
+def test_geojson_geohashes_accepts_point_geometry():
     response = app.test_client().post(
-        '/geohash_from_geojson?precision=5',
+        '/geohashes/geojson?precision=5',
         data={
             'geojson': json.dumps({
                 'type': 'Point',
@@ -228,9 +259,9 @@ def test_geohash_from_geojson_accepts_point_geometry():
     assert response.get_json() == {'geohashes': ['u09tv']}
 
 
-def test_geohash_from_geojson_accepts_json_body():
+def test_geojson_geohashes_accepts_json_body():
     response = app.test_client().post(
-        '/geohash_from_geojson?precision=5',
+        '/geohashes/geojson?precision=5',
         json={
             'type': 'Point',
             'coordinates': [2.3522, 48.8566],
@@ -241,9 +272,9 @@ def test_geohash_from_geojson_accepts_json_body():
     assert response.get_json() == {'geohashes': ['u09tv']}
 
 
-def test_geohash_from_geojson_accepts_json_envelope_with_precision():
+def test_geojson_geohashes_accepts_json_envelope_with_precision():
     response = app.test_client().post(
-        '/geohash_from_geojson',
+        '/geohashes/geojson',
         json={
             'geojson': {
                 'type': 'Point',
@@ -257,9 +288,9 @@ def test_geohash_from_geojson_accepts_json_envelope_with_precision():
     assert response.get_json() == {'geohashes': ['u09']}
 
 
-def test_geohash_from_geojson_accepts_form_precision():
+def test_geojson_geohashes_accepts_form_precision():
     response = app.test_client().post(
-        '/geohash_from_geojson',
+        '/geohashes/geojson',
         data={
             'geojson': json.dumps({
                 'type': 'Point',
@@ -273,36 +304,36 @@ def test_geohash_from_geojson_accepts_form_precision():
     assert response.get_json() == {'geohashes': ['u09']}
 
 
-def test_multipolygon_from_city_uses_instance_method(monkeypatch):
+def test_city_multipolygon_uses_instance_method(monkeypatch):
     geometry = feature_collection('u09tv')
     monkeypatch.setattr('geohashit.app.Nominatim', lambda: FakeNominatim(geometry))
 
     response = app.test_client().get(
-        '/multipolygon_from_city?city_name=Paris&country_code=fr&precision=5'
+        '/multipolygons/city?city_name=Paris&country_code=fr&precision=5'
     )
 
     assert response.status_code == 200
     assert response.get_json()['geojson']['type'] == 'MultiPolygon'
 
 
-def test_multipolygon_from_point_uses_validated_precision(monkeypatch):
+def test_point_multipolygon_uses_validated_precision(monkeypatch):
     geometry = feature_collection('u09tv')
     monkeypatch.setattr('geohashit.app.Nominatim', lambda: FakeNominatim(geometry))
 
     response = app.test_client().get(
-        '/multipolygon_from_point?lat=48.8&lon=2.3&type=city&precision=5'
+        '/multipolygons/point?lat=48.8&lon=2.3&type=city&precision=5'
     )
 
     assert response.status_code == 200
     assert response.get_json()['geojson']['type'] == 'MultiPolygon'
 
 
-def test_multipolygon_from_point_handles_country_type(monkeypatch):
+def test_point_multipolygon_handles_country_type(monkeypatch):
     geometry = feature_collection('u09tv')
     monkeypatch.setattr('geohashit.app.Nominatim', lambda: FakeNominatim(geometry))
 
     response = app.test_client().get(
-        '/multipolygon_from_point?lat=48.8&lon=2.3&type=country&precision=5'
+        '/multipolygons/point?lat=48.8&lon=2.3&type=country&precision=5'
     )
 
     assert response.status_code == 200
@@ -314,19 +345,30 @@ def test_removed_country_point_route_returns_json_404():
         '/multipolygon_country_from_point?lat=48.8&lon=2.3&precision=5'
     )
 
-    assert response.status_code == 404
-    assert response.is_json
+    assert_error(
+        response,
+        404,
+        'not_found',
+        (
+            'The requested URL was not found on the server. If you entered the URL '
+            'manually please check your spelling and try again.'
+        ),
+    )
 
 
-def test_multipolygon_from_city_returns_json_404_for_missing_place(monkeypatch):
+def test_city_multipolygon_returns_json_404_for_missing_place(monkeypatch):
     monkeypatch.setattr('geohashit.app.Nominatim', lambda: MissingPlaceNominatim())
 
     response = app.test_client().get(
-        '/multipolygon_from_city?city_name=Atlantis&country_code=zz&precision=5'
+        '/multipolygons/city?city_name=Atlantis&country_code=zz&precision=5'
     )
 
-    assert response.status_code == 404
-    assert response.get_json() == {'error': 'nominatim search did not return a polygon'}
+    assert_error(
+        response,
+        404,
+        'place_not_found',
+        'nominatim search did not return a polygon',
+    )
 
 
 class FakeResponse:
