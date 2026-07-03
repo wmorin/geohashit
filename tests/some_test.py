@@ -55,6 +55,32 @@ def test_health_route_returns_json_status():
     assert response.get_json() == {'status': 'ok'}
 
 
+def test_openapi_route_describes_current_api_contract():
+    response = app.test_client().get('/openapi.json')
+
+    assert response.status_code == 200
+    spec = response.get_json()
+    assert spec['openapi'] == '3.2.0'
+    assert spec['info']['title'] == "Geohash'it API"
+    assert set(spec['paths']) == {
+        '/',
+        '/health',
+        '/openapi.json',
+        '/multipolygons/point',
+        '/multipolygons/city',
+        '/multipolygons/geohash',
+        '/geohashes/geojson',
+        '/multipolygons/geojson',
+    }
+    assert 'get' in spec['paths']['/multipolygons/point']
+    assert 'post' in spec['paths']['/geohashes/geojson']
+    assert spec['components']['schemas']['Error']['required'] == ['error']
+    assert (
+        spec['components']['schemas']['Precision']['maximum']
+        == 8
+    )
+
+
 def test_unknown_route_returns_json_404():
     response = app.test_client().get('/does-not-exist')
 

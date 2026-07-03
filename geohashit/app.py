@@ -3,6 +3,7 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from geohashit.cover import geojson_to_geohashes, geohashes_to_multipolygon
 from geohashit.nominatim import Nominatim, NominatimError, NominatimLookupError
+from geohashit.openapi import OPENAPI_SPEC
 from geohashit.validation import (
     DEFAULT_PRECISION,
     ValidationError,
@@ -94,6 +95,10 @@ def register_routes(app):
     @app.route('/health', methods=['GET'])
     def health():
         return jsonify(status='ok')
+
+    @app.route('/openapi.json', methods=['GET'])
+    def openapi_json():
+        return jsonify(OPENAPI_SPEC)
 
     @app.route('/multipolygons/geohash', methods=['GET'])
     def geohash_multipolygon():
