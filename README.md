@@ -74,6 +74,10 @@ Returns service metadata and a list of available API endpoints.
 
 Returns `{"status":"ok"}` for uptime checks.
 
+### `GET /openapi.json`
+
+Returns the OpenAPI 3.2.0 description for the API.
+
 ### `GET /multipolygons/point`
 
 Returns geohash cells as a GeoJSON polygon collection for the city or country at a
