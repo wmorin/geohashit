@@ -1,3 +1,5 @@
+import json
+
 import shapely
 
 import pygeohash
@@ -67,10 +69,21 @@ class Geohasher:
         return geohashes
 
     def geojson_to_geohashes(self, data, precision):
-        for f in data['features']:
-            s = shapely.geometry.shape(f['geometry'])
+        if isinstance(data, str):
+            data = json.loads(data)
 
-        return self.geohash_shape(s, precision)
+        if data['type'] == 'FeatureCollection':
+            shapes = [
+                shapely.geometry.shape(feature['geometry'])
+                for feature in data['features']
+            ]
+            shape = unary_union(shapes)
+        elif data['type'] == 'Feature':
+            shape = shapely.geometry.shape(data['geometry'])
+        else:
+            shape = shapely.geometry.shape(data)
+
+        return self.geohash_shape(shape, precision)
 
     def geohash_to_multipolygon(self, geohashes, simplify=False):
         polys = []
