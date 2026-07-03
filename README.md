@@ -207,3 +207,18 @@ uv run pytest
 
 See [TESTING.md](TESTING.md) for setup details. GitHub Actions uses `uv` and runs
 the suite on Python 3.13 and 3.14.
+
+## Benchmarks
+
+Run the geohash coverage benchmark against checked-in city-sized and
+country-sized GeoJSON fixtures:
+
+```bash
+uv run python benchmarks/benchmark_cover.py
+```
+
+Use JSON output for trend collection:
+
+```bash
+uv run python benchmarks/benchmark_cover.py --json
+```
