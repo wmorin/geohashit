@@ -2,11 +2,10 @@ import os
 import threading
 import time
 
+import pygeohash
 import requests
 
-import pygeohash
-from modules.City import City
-from modules.Country import Country
+from geohashit.place import Place
 
 
 class NominatimError(Exception):
@@ -82,42 +81,54 @@ class Nominatim:
 
     def get_city_from_geohash(self, geohash):
         decoded = pygeohash.decode(geohash)
-        lat = decoded.latitude
-        lon = decoded.longitude
-
-        return self.get_city_from_point(lat, lon)
+        return self.get_city_from_point(decoded.latitude, decoded.longitude)
 
     def get_country_from_point(self, lat, lon):
-        payload = {
-            'format': 'json',
-            'accept-language': 'en_us,en,fr',
-            'lat': lat,
-            'lon': lon,
-        }
-        content = self._get_json('/reverse', payload)
+        content = self._get_json('/reverse', self._reverse_payload(lat, lon))
         address = self._address_from_reverse(content)
-        country_code = address['country_code']
-        country_name = address['country']
-
-        return self.get_country_from_name(country_name, country_code)
+        return self.get_country_from_name(address['country'], address['country_code'])
 
     def get_city_from_point(self, lat, lon):
+        content = self._get_json('/reverse', self._reverse_payload(lat, lon))
+        address = self._address_from_reverse(content)
+        city_name = self._city_name_from_address(address)
+        country_code = address['country_code']
+        county = address.get('county', '')
+
+        if county:
+            return self.get_city_from_name(city_name, country_code, county)
+        return self.get_city_from_name(city_name, country_code)
+
+    def get_country_from_name(self, country_name, country_code):
         payload = {
+            'countrycodes': country_code,
+            'country': country_name,
+            'format': 'json',
+            'limit': 10,
+            'polygon_geojson': 1,
+        }
+        return self._place_from_search_result(self._get_place(self._get_json('/search', payload)))
+
+    def get_city_from_name(self, city_name, country_code, county_name=''):
+        payload = {
+            'city': city_name,
+            'countrycodes': country_code,
+            'format': 'json',
+            'limit': 10,
+            'polygon_geojson': 1,
+        }
+        if county_name:
+            payload['county'] = county_name
+
+        return self._place_from_search_result(self._get_place(self._get_json('/search', payload)))
+
+    def _reverse_payload(self, lat, lon):
+        return {
             'format': 'json',
             'accept-language': 'en_us,en,fr',
             'lat': lat,
             'lon': lon,
         }
-        content = self._get_json('/reverse', payload)
-        address = self._address_from_reverse(content)
-        county = address.get('county', '')
-        city_name = self._city_name_from_address(address)
-        country_code = address['country_code']
-
-        if county != '':
-            return self.get_city_from_name(city_name, country_code, county)
-        else:
-            return self.get_city_from_name(city_name, country_code)
 
     def _address_from_reverse(self, content):
         try:
@@ -136,79 +147,32 @@ class Nominatim:
 
         raise NominatimLookupError('nominatim reverse lookup did not return a city')
 
-    def _get_city(self, cities):
-        if not isinstance(cities, list):
+    def _get_place(self, places):
+        if not isinstance(places, list):
             raise NominatimResponseError('nominatim search returned an unexpected response')
 
-        for city in cities:
-            geojson = city.get('geojson', {})
+        for place in places:
+            geojson = place.get('geojson', {})
             if geojson.get('type') == 'Point':
                 continue
-
-            if city.get('type') == 'city':
-                return city
-
-            if city.get('type') == 'administrative':
-                return city
-
-            if city.get('type') == 'residential':
-                return city
+            if place.get('type') in ('city', 'administrative', 'residential'):
+                return place
 
         raise NominatimLookupError('nominatim search did not return a polygon')
 
-    def get_country_from_name(self, country_name, country_code):
-        payload = {
-            'countrycodes': country_code,
-            'country': country_name,
-            'format': 'json',
-            'limit': 10,
-            'polygon_geojson': 1,
-        }
-
-        content = self._get_city(self._get_json('/search', payload))
-
-        country = Country()
-        country.set_place_id(content['place_id'])
-        country.set_centroid(content['lat'], content['lon'])
-        country.set_geometry({
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {},
-                    "geometry": content['geojson']
-                }
-            ]
-        })
-
-        return country
-
-    def get_city_from_name(self, city_name, country_code, county_name=''):
-        payload = {
-            'city': city_name,
-            'countrycodes': country_code,
-            'format': 'json',
-            'limit': 10,
-            'polygon_geojson': 1,
-        }
-
-        if county_name != '':
-            payload['county'] = county_name
-
-        content = self._get_city(self._get_json('/search', payload))
-
-        city = City()
-        city.set_place_id(content['place_id'])
-        city.set_centroid(content['lat'], content['lon'])
-        city.set_geometry({
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {},
-                    "geometry": content['geojson']
-                }
-            ]
-        })
-
-        return city
+    def _place_from_search_result(self, content):
+        return Place(
+            place_id=content['place_id'],
+            centroid={
+                'lat': content['lat'],
+                'lon': content['lon'],
+            },
+            geometry={
+                'type': 'FeatureCollection',
+                'features': [{
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': content['geojson'],
+                }],
+            },
+        )

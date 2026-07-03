@@ -14,14 +14,12 @@ For example, starting from a geopoint, you can produce a geohashed city boundary
 ## Requirements
 
 - Python 3.13 or 3.14
-- `pip`
+- `uv`
 
 ## Installation
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip setuptools wheel
-.venv/bin/python -m pip install -r requirements.txt
+uv sync --dev
 ```
 
 ## Run The API
@@ -102,19 +100,6 @@ Query parameters:
 | `geohash` | yes | Valid geohash |
 | `precision` | no | Geohash precision from `1` to `8`; defaults to `5` |
 
-### `GET /multipolygon_country_from_point`
-
-Returns geohash cells as a GeoJSON polygon collection for the country at a
-latitude/longitude.
-
-Query parameters:
-
-| Name | Required | Description |
-| ---- | -------- | ----------- |
-| `lat` | yes | Latitude from `-90` to `90` |
-| `lon` | yes | Longitude from `-180` to `180` |
-| `precision` | no | Geohash precision from `1` to `8`; defaults to `5` |
-
 ### `POST /geohash_from_geojson`
 
 Returns a list of geohashes covering the submitted GeoJSON shape.
@@ -185,8 +170,8 @@ requests to one request per second.
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest
+uv run pytest
 ```
 
-See [TESTING.md](TESTING.md) for setup details. GitHub Actions runs the suite on
-Python 3.13 and 3.14.
+See [TESTING.md](TESTING.md) for setup details. GitHub Actions uses `uv` and runs
+the suite on Python 3.13 and 3.14.

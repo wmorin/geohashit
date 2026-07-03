@@ -1,14 +1,23 @@
 import json
+import time
 
 import pytest
 
-from modules.Geohasher import Geohasher, _bbox
-from modules.Nominatim import Nominatim, NominatimLookupError, NominatimResponseError
+from geohashit.cover import (
+    geohash_bbox,
+    geohashes_to_multipolygon,
+    geojson_to_geohashes,
+)
+from geohashit.nominatim import (
+    Nominatim,
+    NominatimLookupError,
+    NominatimResponseError,
+)
 from server import app
 
 
 def test_server_imports_under_python3():
-    assert app.name == 'server'
+    assert app.name == 'geohashit'
 
 
 def test_service_index_lists_api_endpoints():
@@ -54,7 +63,7 @@ def test_wrong_method_returns_json_405():
 
 
 def test_geohash_to_multipolygon_returns_geojson_mapping():
-    geojson = Geohasher().geohash_to_multipolygon(['u09tv'])
+    geojson = geohashes_to_multipolygon(['u09tv'])
 
     assert geojson['type'] == 'MultiPolygon'
     assert len(geojson['coordinates']) == 1
@@ -124,7 +133,7 @@ def test_geojson_route_rejects_invalid_geometry_type():
 
 
 def geohash_feature(geohash):
-    bounds = _bbox(geohash)
+    bounds = geohash_bbox(geohash)
     pad = 0.00001
     return {
         'type': 'Feature',
@@ -153,9 +162,6 @@ class FakePlace:
     def __init__(self, geometry):
         self.geometry = geometry
 
-    def get_geometry(self):
-        return self.geometry
-
 
 class FakeNominatim:
     def __init__(self, geometry):
@@ -167,6 +173,9 @@ class FakeNominatim:
     def get_city_from_point(self, lat, lon):
         return FakePlace(self.geometry)
 
+    def get_country_from_point(self, lat, lon):
+        return FakePlace(self.geometry)
+
 
 class MissingPlaceNominatim:
     def get_city_from_name(self, city_name, country_code):
@@ -174,15 +183,24 @@ class MissingPlaceNominatim:
 
 
 def test_feature_collection_geohashes_all_features():
-    geohashes = Geohasher.geohash_geojson(feature_collection('u09tv', 'u09ty'), 5)
+    geohashes = geojson_to_geohashes(feature_collection('u09tv', 'u09ty'), 5)
 
     assert set(geohashes) == {'u09tv', 'u09ty'}
 
 
 def test_small_polygon_returns_representative_geohash_at_coarse_precision():
-    geohashes = Geohasher.geohash_geojson(geohash_feature('u09tv'), 3)
+    geohashes = geojson_to_geohashes(geohash_feature('u09tv'), 3)
 
     assert geohashes == ['u09']
+
+
+def test_geohash_covering_small_polygon_performance_guard():
+    start = time.perf_counter()
+
+    geohashes = geojson_to_geohashes(geohash_feature('u09tv'), 5)
+
+    assert geohashes == ['u09tv']
+    assert time.perf_counter() - start < 0.25
 
 
 def test_geohash_from_geojson_accepts_json_string():
@@ -257,7 +275,7 @@ def test_geohash_from_geojson_accepts_form_precision():
 
 def test_multipolygon_from_city_uses_instance_method(monkeypatch):
     geometry = feature_collection('u09tv')
-    monkeypatch.setattr('server.Nominatim', lambda: FakeNominatim(geometry))
+    monkeypatch.setattr('geohashit.app.Nominatim', lambda: FakeNominatim(geometry))
 
     response = app.test_client().get(
         '/multipolygon_from_city?city_name=Paris&country_code=fr&precision=5'
@@ -269,7 +287,7 @@ def test_multipolygon_from_city_uses_instance_method(monkeypatch):
 
 def test_multipolygon_from_point_uses_validated_precision(monkeypatch):
     geometry = feature_collection('u09tv')
-    monkeypatch.setattr('server.Nominatim', lambda: FakeNominatim(geometry))
+    monkeypatch.setattr('geohashit.app.Nominatim', lambda: FakeNominatim(geometry))
 
     response = app.test_client().get(
         '/multipolygon_from_point?lat=48.8&lon=2.3&type=city&precision=5'
@@ -279,8 +297,29 @@ def test_multipolygon_from_point_uses_validated_precision(monkeypatch):
     assert response.get_json()['geojson']['type'] == 'MultiPolygon'
 
 
+def test_multipolygon_from_point_handles_country_type(monkeypatch):
+    geometry = feature_collection('u09tv')
+    monkeypatch.setattr('geohashit.app.Nominatim', lambda: FakeNominatim(geometry))
+
+    response = app.test_client().get(
+        '/multipolygon_from_point?lat=48.8&lon=2.3&type=country&precision=5'
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()['geojson']['type'] == 'MultiPolygon'
+
+
+def test_removed_country_point_route_returns_json_404():
+    response = app.test_client().get(
+        '/multipolygon_country_from_point?lat=48.8&lon=2.3&precision=5'
+    )
+
+    assert response.status_code == 404
+    assert response.is_json
+
+
 def test_multipolygon_from_city_returns_json_404_for_missing_place(monkeypatch):
-    monkeypatch.setattr('server.Nominatim', lambda: MissingPlaceNominatim())
+    monkeypatch.setattr('geohashit.app.Nominatim', lambda: MissingPlaceNominatim())
 
     response = app.test_client().get(
         '/multipolygon_from_city?city_name=Atlantis&country_code=zz&precision=5'
@@ -374,7 +413,7 @@ def test_nominatim_rejects_search_without_polygon():
     nominatim = Nominatim(min_interval=0)
 
     with pytest.raises(NominatimLookupError) as error:
-        nominatim._get_city([{
+        nominatim._get_place([{
             'type': 'city',
             'geojson': {'type': 'Point'},
         }])
