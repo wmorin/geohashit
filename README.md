@@ -49,6 +49,14 @@ All responses are JSON. Validation errors return:
 {"error": "message"}
 ```
 
+### `GET /`
+
+Returns service metadata and a list of available API endpoints.
+
+### `GET /health`
+
+Returns `{"status":"ok"}` for uptime checks.
+
 ### `GET /multipolygon_from_point`
 
 Returns geohash cells as a GeoJSON polygon collection for the city or country at a
@@ -111,12 +119,16 @@ Query parameters:
 
 Returns a list of geohashes covering the submitted GeoJSON shape.
 
-Form fields:
+Parameters:
 
 | Name | Required | Description |
 | ---- | -------- | ----------- |
-| `geojson` | yes | GeoJSON geometry, Feature, or FeatureCollection |
-| `precision` | no | Geohash precision from `1` to `8`; defaults to `5` |
+| `precision` | no | Geohash precision from `1` to `8`; defaults to `5`. Accepted as a query parameter, form field, or JSON envelope field. |
+
+Body:
+
+Send either a `geojson` form field, a raw GeoJSON JSON body, or a JSON envelope
+with `geojson` and optional `precision` fields.
 
 Example:
 
@@ -125,23 +137,34 @@ curl -X POST "http://127.0.0.1:5000/geohash_from_geojson?precision=5" \
   -F 'geojson={"type":"Point","coordinates":[2.3522,48.8566]}'
 ```
 
+```bash
+curl -X POST "http://127.0.0.1:5000/geohash_from_geojson" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"Point","coordinates":[2.3522,48.8566]}'
+```
+
 ### `POST /multipolygon_from_geojson`
 
 Returns the submitted GeoJSON shape's geohash cells as a GeoJSON polygon collection.
 
-Form fields:
+Parameters:
 
 | Name | Required | Description |
 | ---- | -------- | ----------- |
-| `geojson` | yes | GeoJSON geometry, Feature, or FeatureCollection |
-| `precision` | no | Geohash precision from `1` to `8`; defaults to `5` |
+| `precision` | no | Geohash precision from `1` to `8`; defaults to `5`. Accepted as a query parameter, form field, or JSON envelope field. |
+
+Body:
+
+Send either a `geojson` form field, a raw GeoJSON JSON body, or a JSON envelope
+with `geojson` and optional `precision` fields.
 
 ## Error Codes
 
 | Status | Meaning |
 | ------ | ------- |
 | `400` | Invalid request parameter or invalid GeoJSON |
-| `404` | Nominatim could not find a matching place polygon |
+| `404` | Nominatim could not find a matching place polygon, or the route does not exist |
+| `405` | The route exists, but the HTTP method is not allowed |
 | `413` | Request body is larger than 1 MB |
 | `502` | Nominatim failed or returned an invalid upstream response |
 
