@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from geohash import encode as geohash_encode
 from modules.Geohasher import Geohasher
 from modules.Nominatim import Nominatim
 

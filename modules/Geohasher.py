@@ -1,9 +1,23 @@
 import shapely
 
-from geohash import bbox, decode
-from geojson import MultiPolygon
-from shapely.geometry import box, Point, Polygon, mapping
-from shapely.ops import cascaded_union
+import pygeohash
+from shapely.geometry import MultiPolygon, Point, Polygon, box, mapping
+from shapely.ops import unary_union
+
+
+def _bbox(geohash):
+    bounds = pygeohash.get_bounding_box(geohash)
+    return {
+        'n': bounds.max_lat,
+        's': bounds.min_lat,
+        'e': bounds.max_lon,
+        'w': bounds.min_lon,
+    }
+
+
+def _decode(geohash):
+    decoded = pygeohash.decode(geohash)
+    return decoded.latitude, decoded.longitude
 
 
 class Geohasher:
@@ -21,7 +35,7 @@ class Geohasher:
         for char in self._get_geohash_chars():
             hash = prefix + char
 
-            p = bbox(hash)
+            p = _bbox(hash)
             box_shape = box(p['w'], p['s'], p['e'], p['n'])
 
             if mode == 'inside':
@@ -37,7 +51,7 @@ class Geohasher:
                     sub_shape = box_shape.intersection(shape)
                     geohashes.extend(self.geohash_shape(sub_shape, precision, mode, level + 1, hash))
                 elif level == precision:
-                    (lat, lon) = decode(str(hash))
+                    (lat, lon) = _decode(str(hash))
 
                     if shape.contains(Point(lon, lat)):
                         geohashes.append(hash)
@@ -62,17 +76,17 @@ class Geohasher:
         polys = []
 
         for g in geohashes:
-            box = bbox(g)
+            bounds = _bbox(g)
 
             polys.append(Polygon([
-                (box['w'], box['n']),
-                (box['e'], box['n']),
-                (box['e'], box['s']),
-                (box['w'], box['s']),
+                (bounds['w'], bounds['n']),
+                (bounds['e'], bounds['n']),
+                (bounds['e'], bounds['s']),
+                (bounds['w'], bounds['s']),
             ]))
 
         if simplify:
-            polys = cascaded_union(polys)
+            polys = unary_union(polys)
         else:
             polys = MultiPolygon(polys)
 
