@@ -11,6 +11,48 @@ def test_server_imports_under_python3():
     assert app.name == 'server'
 
 
+def test_service_index_lists_api_endpoints():
+    response = app.test_client().get('/')
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['name'] == "Geohash'it"
+    assert payload['status'] == 'ok'
+    assert '/geohash_from_geojson' in [
+        endpoint['path'] for endpoint in payload['endpoints']
+    ]
+
+
+def test_health_route_returns_json_status():
+    response = app.test_client().get('/health')
+
+    assert response.status_code == 200
+    assert response.get_json() == {'status': 'ok'}
+
+
+def test_unknown_route_returns_json_404():
+    response = app.test_client().get('/does-not-exist')
+
+    assert response.status_code == 404
+    assert response.is_json
+    assert response.get_json() == {
+        'error': (
+            'The requested URL was not found on the server. If you entered the URL '
+            'manually please check your spelling and try again.'
+        ),
+    }
+
+
+def test_wrong_method_returns_json_405():
+    response = app.test_client().get('/geohash_from_geojson')
+
+    assert response.status_code == 405
+    assert response.is_json
+    assert response.get_json() == {
+        'error': 'The method is not allowed for the requested URL.',
+    }
+
+
 def test_geohash_to_multipolygon_returns_geojson_mapping():
     geojson = Geohasher().geohash_to_multipolygon(['u09tv'])
 
@@ -166,6 +208,51 @@ def test_geohash_from_geojson_accepts_point_geometry():
 
     assert response.status_code == 200
     assert response.get_json() == {'geohashes': ['u09tv']}
+
+
+def test_geohash_from_geojson_accepts_json_body():
+    response = app.test_client().post(
+        '/geohash_from_geojson?precision=5',
+        json={
+            'type': 'Point',
+            'coordinates': [2.3522, 48.8566],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {'geohashes': ['u09tv']}
+
+
+def test_geohash_from_geojson_accepts_json_envelope_with_precision():
+    response = app.test_client().post(
+        '/geohash_from_geojson',
+        json={
+            'geojson': {
+                'type': 'Point',
+                'coordinates': [2.3522, 48.8566],
+            },
+            'precision': 3,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {'geohashes': ['u09']}
+
+
+def test_geohash_from_geojson_accepts_form_precision():
+    response = app.test_client().post(
+        '/geohash_from_geojson',
+        data={
+            'geojson': json.dumps({
+                'type': 'Point',
+                'coordinates': [2.3522, 48.8566],
+            }),
+            'precision': 3,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {'geohashes': ['u09']}
 
 
 def test_multipolygon_from_city_uses_instance_method(monkeypatch):

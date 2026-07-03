@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 import pygeohash
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from modules.Geohasher import Geohasher
 from modules.Nominatim import Nominatim, NominatimError, NominatimLookupError
@@ -11,6 +11,42 @@ app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 MIN_PRECISION = 1
 MAX_PRECISION = 8
 DEFAULT_PRECISION = 5
+API_ENDPOINTS = [
+    {
+        'path': '/multipolygon_from_point',
+        'methods': ['GET'],
+        'description': (
+            'Resolve a city or country from a point and return geohash polygons.'
+        ),
+    },
+    {
+        'path': '/multipolygon_from_city',
+        'methods': ['GET'],
+        'description': 'Resolve a named city and return geohash polygons.',
+    },
+    {
+        'path': '/multipolygon_from_geohash',
+        'methods': ['GET'],
+        'description': (
+            'Resolve the city containing a geohash and return geohash polygons.'
+        ),
+    },
+    {
+        'path': '/multipolygon_country_from_point',
+        'methods': ['GET'],
+        'description': 'Resolve a country from a point and return geohash polygons.',
+    },
+    {
+        'path': '/geohash_from_geojson',
+        'methods': ['POST'],
+        'description': 'Return geohashes covering a submitted GeoJSON shape.',
+    },
+    {
+        'path': '/multipolygon_from_geojson',
+        'methods': ['POST'],
+        'description': 'Return geohash polygons for a submitted GeoJSON shape.',
+    },
+]
 
 
 class ValidationError(Exception):
@@ -37,6 +73,26 @@ def handle_nominatim_error(error):
     return jsonify(error=str(error)), 502
 
 
+@app.errorhandler(HTTPException)
+def handle_http_error(error):
+    return jsonify(error=error.description), error.code
+
+
+@app.route('/', methods=['GET'])
+def service_index():
+    return jsonify(
+        name="Geohash'it",
+        description='Convert places and GeoJSON shapes into geohash coverage polygons.',
+        status='ok',
+        endpoints=API_ENDPOINTS,
+    )
+
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify(status='ok')
+
+
 def get_required_arg(name):
     value = request.args.get(name)
     if value is None or value == '':
@@ -53,11 +109,32 @@ def get_geohash_arg(name):
     return value
 
 
-def get_required_form_field(name):
-    value = request.form.get(name)
-    if value is None or value == '':
-        raise ValidationError('%s is required' % name)
-    return value
+def get_json_payload():
+    if not request.is_json:
+        return None
+
+    payload = request.get_json(silent=True)
+    if payload is None:
+        raise ValidationError('geojson must be valid JSON')
+    return payload
+
+
+def get_geojson_payload():
+    form_value = request.form.get('geojson')
+    if form_value is not None and form_value != '':
+        return form_value
+
+    payload = get_json_payload()
+    if payload is None:
+        raise ValidationError('geojson is required')
+
+    if isinstance(payload, dict) and 'geojson' in payload:
+        geojson = payload['geojson']
+        if geojson == '':
+            raise ValidationError('geojson is required')
+        return geojson
+
+    return payload
 
 
 def get_float_arg(name, minimum=None, maximum=None):
@@ -77,6 +154,13 @@ def get_float_arg(name, minimum=None, maximum=None):
 
 def get_precision_arg(default=None):
     raw_value = request.args.get('precision')
+    if raw_value is None or raw_value == '':
+        raw_value = request.form.get('precision')
+    if raw_value is None or raw_value == '':
+        payload = request.get_json(silent=True) if request.is_json else None
+        if isinstance(payload, dict):
+            raw_value = payload.get('precision')
+
     if raw_value is None or raw_value == '':
         if default is not None:
             return default
@@ -206,7 +290,7 @@ def geohash_from_geojson():
     """
     Get geohashes that form a city from a given geohash
     """
-    json_data = get_required_form_field('geojson')
+    json_data = get_geojson_payload()
     precision = get_precision_arg(default=DEFAULT_PRECISION)
     geohashes = geohash_geojson(json_data, precision)
 
@@ -218,7 +302,7 @@ def multipolygon_from_geojson():
     """
     Get geohashes that form the given geojson
     """
-    json_data = get_required_form_field('geojson')
+    json_data = get_geojson_payload()
     precision = get_precision_arg(default=DEFAULT_PRECISION)
     geohashes = geohash_geojson(json_data, precision)
 
