@@ -39,6 +39,18 @@ FLASK_DEBUG=1 ./start
 For production, run the Flask app behind a WSGI server instead of Flask's built-in
 development server.
 
+## Docker
+
+Build and run the production image locally:
+
+```bash
+docker build -t geohashit .
+docker run --rm -p 5000:5000 geohashit
+```
+
+Released images are published to GitHub Container Registry as
+`ghcr.io/wmorin/geohashit`.
+
 ## API
 
 All responses are JSON. Validation errors return:
