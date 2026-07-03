@@ -53,10 +53,17 @@ Released images are published to GitHub Container Registry as
 
 ## API
 
-All responses are JSON. Validation errors return:
+All responses are JSON. Errors return a stable envelope with a machine-readable
+code, human-readable message, and HTTP status:
 
 ```json
-{"error": "message"}
+{
+  "error": {
+    "code": "validation_error",
+    "message": "precision must be between 1 and 8",
+    "status": 400
+  }
+}
 ```
 
 ### `GET /`
@@ -67,7 +74,7 @@ Returns service metadata and a list of available API endpoints.
 
 Returns `{"status":"ok"}` for uptime checks.
 
-### `GET /multipolygon_from_point`
+### `GET /multipolygons/point`
 
 Returns geohash cells as a GeoJSON polygon collection for the city or country at a
 latitude/longitude.
@@ -85,10 +92,10 @@ Query parameters:
 Example:
 
 ```bash
-curl "http://127.0.0.1:5000/multipolygon_from_point?lat=48.8566&lon=2.3522&type=city&precision=5"
+curl "http://127.0.0.1:5000/multipolygons/point?lat=48.8566&lon=2.3522&type=city&precision=5"
 ```
 
-### `GET /multipolygon_from_city`
+### `GET /multipolygons/city`
 
 Returns geohash cells as a GeoJSON polygon collection for a named city.
 
@@ -100,7 +107,7 @@ Query parameters:
 | `country_code` | yes | Two-letter country code |
 | `precision` | no | Geohash precision from `1` to `8`; defaults to `5` |
 
-### `GET /multipolygon_from_geohash`
+### `GET /multipolygons/geohash`
 
 Decodes a geohash to a point, resolves the city containing that point, and returns
 geohash cells as a GeoJSON polygon collection.
@@ -112,7 +119,7 @@ Query parameters:
 | `geohash` | yes | Valid geohash |
 | `precision` | no | Geohash precision from `1` to `8`; defaults to `5` |
 
-### `POST /geohash_from_geojson`
+### `POST /geohashes/geojson`
 
 Returns a list of geohashes covering the submitted GeoJSON shape.
 
@@ -130,17 +137,17 @@ with `geojson` and optional `precision` fields.
 Example:
 
 ```bash
-curl -X POST "http://127.0.0.1:5000/geohash_from_geojson?precision=5" \
+curl -X POST "http://127.0.0.1:5000/geohashes/geojson?precision=5" \
   -F 'geojson={"type":"Point","coordinates":[2.3522,48.8566]}'
 ```
 
 ```bash
-curl -X POST "http://127.0.0.1:5000/geohash_from_geojson" \
+curl -X POST "http://127.0.0.1:5000/geohashes/geojson" \
   -H "Content-Type: application/json" \
   -d '{"type":"Point","coordinates":[2.3522,48.8566]}'
 ```
 
-### `POST /multipolygon_from_geojson`
+### `POST /multipolygons/geojson`
 
 Returns the submitted GeoJSON shape's geohash cells as a GeoJSON polygon collection.
 
@@ -156,6 +163,19 @@ Send either a `geojson` form field, a raw GeoJSON JSON body, or a JSON envelope
 with `geojson` and optional `precision` fields.
 
 ## Error Codes
+
+Error response `code` values:
+
+| Code | Status | Meaning |
+| ---- | ------ | ------- |
+| `validation_error` | `400` | Invalid request parameter or invalid GeoJSON |
+| `place_not_found` | `404` | Nominatim could not find a matching place polygon |
+| `not_found` | `404` | The route does not exist |
+| `method_not_allowed` | `405` | The route exists, but the HTTP method is not allowed |
+| `payload_too_large` | `413` | Request body is larger than 1 MB |
+| `upstream_error` | `502` | Nominatim failed or returned an invalid upstream response |
+
+HTTP status meanings:
 
 | Status | Meaning |
 | ------ | ------- |
