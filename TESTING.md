@@ -1,19 +1,18 @@
 # Testing
 
-Geohash'it uses `pytest` for API and geohashing regression tests.
+Geohash'it uses `pytest` for API and geohashing regression tests. Dependencies
+are managed with `uv` and locked in `uv.lock`.
 
 ## Setup
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip setuptools wheel
-.venv/bin/python -m pip install -r requirements.txt
+uv sync --dev
 ```
 
 ## Run
 
 ```bash
-.venv/bin/python -m pytest
+uv run pytest
 ```
 
 The suite covers request validation, GeoJSON conversion, Nominatim request handling,

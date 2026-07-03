@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
 
-export FLASK_APP=server.py
 export FLASK_DEBUG=${FLASK_DEBUG:-0}
-flask run
+uv run --frozen flask --app server:app run
