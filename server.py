@@ -1,8 +1,9 @@
 from flask import Flask, jsonify, request
+import pygeohash
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from modules.Geohasher import Geohasher
-from modules.Nominatim import Nominatim
+from modules.Nominatim import Nominatim, NominatimError, NominatimLookupError
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
@@ -26,10 +27,29 @@ def handle_request_too_large(error):
     return jsonify(error='request body is too large'), 413
 
 
+@app.errorhandler(NominatimLookupError)
+def handle_nominatim_lookup_error(error):
+    return jsonify(error=str(error)), 404
+
+
+@app.errorhandler(NominatimError)
+def handle_nominatim_error(error):
+    return jsonify(error=str(error)), 502
+
+
 def get_required_arg(name):
     value = request.args.get(name)
     if value is None or value == '':
         raise ValidationError('%s is required' % name)
+    return value
+
+
+def get_geohash_arg(name):
+    value = get_required_arg(name)
+    try:
+        pygeohash.decode(value)
+    except ValueError:
+        raise ValidationError('%s must be a valid geohash' % name)
     return value
 
 
@@ -93,17 +113,24 @@ def get_bool_arg(name, default=False):
     raise ValidationError('%s must be a boolean' % name)
 
 
+def geohash_geojson(json_data, precision):
+    try:
+        return Geohasher.geohash_geojson(json_data, precision)
+    except ValueError as error:
+        raise ValidationError(str(error))
+
+
 @app.route("/multipolygon_from_geohash", methods=['GET'])
 def multipolygon_from_geohash():
     """
     Get multipolygon geohashes of a city from a given geohash
     """
-    geohash = get_required_arg('geohash')
+    geohash = get_geohash_arg('geohash')
 
     nominatim = Nominatim()
     city = nominatim.get_city_from_geohash(geohash)
     precision = get_precision_arg(default=DEFAULT_PRECISION)
-    geohashes = Geohasher.geohash_geojson(city.get_geometry(), precision)
+    geohashes = geohash_geojson(city.get_geometry(), precision)
 
     geohasher = Geohasher()
     multi = geohasher.geohash_to_multipolygon(geohashes)
@@ -126,10 +153,10 @@ def multipolygon_from_point():
 
     if poly_type == 'city':
         poly = nominatim.get_city_from_point(lat, lon)
-        geohashes = Geohasher.geohash_geojson(poly.get_geometry(), precision)
+        geohashes = geohash_geojson(poly.get_geometry(), precision)
     elif poly_type == 'country':
         poly = nominatim.get_country_from_point(lat, lon)
-        geohashes = Geohasher.geohash_geojson(poly.get_geometry(), precision)
+        geohashes = geohash_geojson(poly.get_geometry(), precision)
 
     geohasher = Geohasher()
     multi = geohasher.geohash_to_multipolygon(geohashes, simplify)
@@ -148,7 +175,7 @@ def multipolygon_country_from_point():
     nominatim = Nominatim()
     country = nominatim.get_country_from_point(lat, lon)
     precision = get_precision_arg(default=DEFAULT_PRECISION)
-    geohashes = Geohasher.geohash_geojson(country.get_geometry(), precision)
+    geohashes = geohash_geojson(country.get_geometry(), precision)
 
     geohasher = Geohasher()
     multi = geohasher.geohash_to_multipolygon(geohashes)
@@ -166,7 +193,7 @@ def multipolygon_from_city():
     nominatim = Nominatim()
     city = nominatim.get_city_from_name(city_name, country_code)
     precision = get_precision_arg(default=DEFAULT_PRECISION)
-    geohashes = Geohasher.geohash_geojson(city.get_geometry(), precision)
+    geohashes = geohash_geojson(city.get_geometry(), precision)
 
     geohasher = Geohasher()
     multi = geohasher.geohash_to_multipolygon(geohashes)
@@ -181,7 +208,7 @@ def geohash_from_geojson():
     """
     json_data = get_required_form_field('geojson')
     precision = get_precision_arg(default=DEFAULT_PRECISION)
-    geohashes = Geohasher.geohash_geojson(json_data, precision)
+    geohashes = geohash_geojson(json_data, precision)
 
     return jsonify(geohashes=geohashes)
 
@@ -193,7 +220,7 @@ def multipolygon_from_geojson():
     """
     json_data = get_required_form_field('geojson')
     precision = get_precision_arg(default=DEFAULT_PRECISION)
-    geohashes = Geohasher.geohash_geojson(json_data, precision)
+    geohashes = geohash_geojson(json_data, precision)
 
     geohasher = Geohasher()
     multi = geohasher.geohash_to_multipolygon(geohashes)

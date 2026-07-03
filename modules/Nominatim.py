@@ -9,6 +9,18 @@ from modules.City import City
 from modules.Country import Country
 
 
+class NominatimError(Exception):
+    pass
+
+
+class NominatimLookupError(NominatimError):
+    pass
+
+
+class NominatimResponseError(NominatimError):
+    pass
+
+
 class Nominatim:
     _cache = {}
     _last_request_at = 0
@@ -51,14 +63,20 @@ class Nominatim:
             return self.__class__._cache[cache_key]
 
         self._rate_limit()
-        response = self.session.get(
-            self.url + path,
-            params=payload,
-            headers={'User-Agent': self.user_agent},
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        content = response.json()
+        try:
+            response = self.session.get(
+                self.url + path,
+                params=payload,
+                headers={'User-Agent': self.user_agent},
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            content = response.json()
+        except requests.RequestException as error:
+            raise NominatimError('nominatim request failed') from error
+        except ValueError as error:
+            raise NominatimResponseError('nominatim returned invalid JSON') from error
+
         self.__class__._cache[cache_key] = content
         return content
 
@@ -77,8 +95,9 @@ class Nominatim:
             'lon': lon,
         }
         content = self._get_json('/reverse', payload)
-        country_code = content['address']['country_code']
-        country_name = content['address']['country']
+        address = self._address_from_reverse(content)
+        country_code = address['country_code']
+        country_name = address['country']
 
         return self.get_country_from_name(country_name, country_code)
 
@@ -90,44 +109,52 @@ class Nominatim:
             'lon': lon,
         }
         content = self._get_json('/reverse', payload)
-
-        county = ''
-
-        if 'county' in content['address']:
-            county = content['address']['county']
-
-        if 'village' in content['address']:
-            city_name = content['address']['village']
-        elif 'town' in content['address']:
-            city_name = content['address']['town']
-        else:
-            city_name = content['address']['city']
-
-        print('-----------extracted-city-name--------------')
-        print(city_name)
-
-        country_code = content['address']['country_code']
+        address = self._address_from_reverse(content)
+        county = address.get('county', '')
+        city_name = self._city_name_from_address(address)
+        country_code = address['country_code']
 
         if county != '':
             return self.get_city_from_name(city_name, country_code, county)
         else:
             return self.get_city_from_name(city_name, country_code)
 
+    def _address_from_reverse(self, content):
+        try:
+            address = content['address']
+            address['country_code']
+            address['country']
+        except (KeyError, TypeError):
+            raise NominatimLookupError('nominatim reverse lookup did not return a place')
+
+        return address
+
+    def _city_name_from_address(self, address):
+        for field in ('city', 'town', 'village', 'municipality', 'hamlet'):
+            if field in address:
+                return address[field]
+
+        raise NominatimLookupError('nominatim reverse lookup did not return a city')
+
     def _get_city(self, cities):
+        if not isinstance(cities, list):
+            raise NominatimResponseError('nominatim search returned an unexpected response')
+
         for city in cities:
-            if city['geojson']['type'] == 'Point':
+            geojson = city.get('geojson', {})
+            if geojson.get('type') == 'Point':
                 continue
 
-            if city['type'] == 'city':
+            if city.get('type') == 'city':
                 return city
 
-            if city['type'] == 'administrative':
+            if city.get('type') == 'administrative':
                 return city
 
-            if city['type'] == 'residential':
+            if city.get('type') == 'residential':
                 return city
 
-        return cities
+        raise NominatimLookupError('nominatim search did not return a polygon')
 
     def get_country_from_name(self, country_name, country_code):
         payload = {

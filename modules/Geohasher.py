@@ -1,6 +1,7 @@
 import json
 
 import shapely
+import shapely.errors
 
 import pygeohash
 from shapely.geometry import MultiPolygon, Point, Polygon, box, mapping
@@ -70,20 +71,36 @@ class Geohasher:
 
     def geojson_to_geohashes(self, data, precision):
         if isinstance(data, str):
-            data = json.loads(data)
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                raise ValueError('geojson must be valid JSON')
 
-        if data['type'] == 'FeatureCollection':
-            shapes = [
-                shapely.geometry.shape(feature['geometry'])
-                for feature in data['features']
-            ]
-            shape = unary_union(shapes)
-        elif data['type'] == 'Feature':
-            shape = shapely.geometry.shape(data['geometry'])
-        else:
-            shape = shapely.geometry.shape(data)
+        try:
+            if data['type'] == 'FeatureCollection':
+                shapes = [
+                    shapely.geometry.shape(feature['geometry'])
+                    for feature in data['features']
+                ]
+                shape = unary_union(shapes)
+            elif data['type'] == 'Feature':
+                shape = shapely.geometry.shape(data['geometry'])
+            else:
+                shape = shapely.geometry.shape(data)
+        except (KeyError, TypeError):
+            raise ValueError('geojson must be a GeoJSON geometry, Feature, or FeatureCollection')
+        except shapely.errors.ShapelyError:
+            raise ValueError('geojson contains invalid geometry')
 
-        return self.geohash_shape(shape, precision)
+        if shape.geom_type == 'Point':
+            return [pygeohash.encode(shape.y, shape.x, precision=precision)]
+
+        geohashes = self.geohash_shape(shape, precision)
+        if not geohashes and not shape.is_empty:
+            point = shape.representative_point()
+            return [pygeohash.encode(point.y, point.x, precision=precision)]
+
+        return geohashes
 
     def geohash_to_multipolygon(self, geohashes, simplify=False):
         polys = []
