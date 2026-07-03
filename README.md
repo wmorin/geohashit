@@ -18,4 +18,13 @@ pip install -r requirements.txt
 ./start
 ```
 
-Server is now listening for calls on http://127.0.0.1:5000/
+Server is now listening for calls on http://127.0.0.1:5000/.
+
+Debug mode is disabled by default. For local development only:
+
+```
+FLASK_DEBUG=1 ./start
+```
+
+For production, run the Flask app behind a WSGI server instead of the built-in
+development server.
