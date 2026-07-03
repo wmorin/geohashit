@@ -9,6 +9,7 @@ app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 
 MIN_PRECISION = 1
 MAX_PRECISION = 8
+DEFAULT_PRECISION = 5
 
 
 class ValidationError(Exception):
@@ -101,7 +102,8 @@ def multipolygon_from_geohash():
 
     nominatim = Nominatim()
     city = nominatim.get_city_from_geohash(geohash)
-    geohashes = Geohasher.geohash_geojson(city.get_geometry())
+    precision = get_precision_arg(default=DEFAULT_PRECISION)
+    geohashes = Geohasher.geohash_geojson(city.get_geometry(), precision)
 
     geohasher = Geohasher()
     multi = geohasher.geohash_to_multipolygon(geohashes)
@@ -145,7 +147,8 @@ def multipolygon_country_from_point():
 
     nominatim = Nominatim()
     country = nominatim.get_country_from_point(lat, lon)
-    geohashes = Geohasher.geohash_geojson(country.get_geometry())
+    precision = get_precision_arg(default=DEFAULT_PRECISION)
+    geohashes = Geohasher.geohash_geojson(country.get_geometry(), precision)
 
     geohasher = Geohasher()
     multi = geohasher.geohash_to_multipolygon(geohashes)
@@ -162,9 +165,11 @@ def multipolygon_from_city():
 
     nominatim = Nominatim()
     city = nominatim.get_city_from_name(city_name, country_code)
-    geohashes = Geohasher.geohash_geojson(city.get_geometry())
+    precision = get_precision_arg(default=DEFAULT_PRECISION)
+    geohashes = Geohasher.geohash_geojson(city.get_geometry(), precision)
 
-    multi = Geohasher.geohash_to_multipolygon(geohashes)
+    geohasher = Geohasher()
+    multi = geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)
 
@@ -175,7 +180,8 @@ def geohash_from_geojson():
     Get geohashes that form a city from a given geohash
     """
     json_data = get_required_form_field('geojson')
-    geohashes = Geohasher.geohash_geojson(json_data)
+    precision = get_precision_arg(default=DEFAULT_PRECISION)
+    geohashes = Geohasher.geohash_geojson(json_data, precision)
 
     return jsonify(geohashes=geohashes)
 
@@ -186,8 +192,10 @@ def multipolygon_from_geojson():
     Get geohashes that form the given geojson
     """
     json_data = get_required_form_field('geojson')
-    geohashes = Geohasher.geohash_geojson(json_data)
+    precision = get_precision_arg(default=DEFAULT_PRECISION)
+    geohashes = Geohasher.geohash_geojson(json_data, precision)
 
-    multi = Geohasher.geohash_to_multipolygon(geohashes)
+    geohasher = Geohasher()
+    multi = geohasher.geohash_to_multipolygon(geohashes)
 
     return jsonify(geojson=multi)
