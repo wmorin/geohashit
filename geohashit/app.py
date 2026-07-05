@@ -6,6 +6,7 @@ from geohashit.cover import (
     geojson_to_geohashes,
     geohashes_to_multipolygon,
 )
+from geohashit.metadata import API_ENDPOINTS, SERVICE_DESCRIPTION, SERVICE_NAME
 from geohashit.nominatim import Nominatim, NominatimError, NominatimLookupError
 from geohashit.openapi import OPENAPI_SPEC
 from geohashit.validation import (
@@ -19,39 +20,6 @@ from geohashit.validation import (
     get_precision_arg,
     get_required_arg,
 )
-
-API_ENDPOINTS = [
-    {
-        'path': '/multipolygons/point',
-        'methods': ['GET'],
-        'description': (
-            'Resolve a city or country from a point and return geohash polygons.'
-        ),
-    },
-    {
-        'path': '/multipolygons/city',
-        'methods': ['GET'],
-        'description': 'Resolve a named city and return geohash polygons.',
-    },
-    {
-        'path': '/multipolygons/geohash',
-        'methods': ['GET'],
-        'description': (
-            'Resolve the city containing a geohash and return geohash polygons.'
-        ),
-    },
-    {
-        'path': '/geohashes/geojson',
-        'methods': ['POST'],
-        'description': 'Return geohashes covering a submitted GeoJSON shape.',
-    },
-    {
-        'path': '/multipolygons/geojson',
-        'methods': ['POST'],
-        'description': 'Return geohash polygons for a submitted GeoJSON shape.',
-    },
-]
-
 
 def create_app():
     app = Flask('geohashit')
@@ -90,8 +58,8 @@ def register_routes(app):
     @app.route('/', methods=['GET'])
     def service_index():
         return jsonify(
-            name="Geohash'it",
-            description='Convert places and GeoJSON shapes into geohash coverage polygons.',
+            name=SERVICE_NAME,
+            description=SERVICE_DESCRIPTION,
             status='ok',
             endpoints=API_ENDPOINTS,
         )

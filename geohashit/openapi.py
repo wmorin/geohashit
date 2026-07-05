@@ -1,3 +1,6 @@
+from geohashit.metadata import API_VERSION, SERVICE_DESCRIPTION, SERVICE_NAME
+
+
 def json_response(description, schema):
     return {
         'description': description,
@@ -89,11 +92,9 @@ def common_error_responses(include_not_found=True):
 OPENAPI_SPEC = {
     'openapi': '3.2.0',
     'info': {
-        'title': "Geohash'it API",
-        'version': '0.1.1',
-        'description': (
-            'Convert places and GeoJSON shapes into geohash coverage polygons.'
-        ),
+        'title': '%s API' % SERVICE_NAME,
+        'version': API_VERSION,
+        'description': SERVICE_DESCRIPTION,
     },
     'servers': [{'url': '/'}],
     'tags': [

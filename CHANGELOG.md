@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.2 - 2026-07-05
+
+- Refactored geohash coverage traversal into explicit coverage-mode handlers.
+- Split Nominatim cache and rate-limit responsibilities from lookup behavior.
+- Centralized service metadata used by the Flask index and OpenAPI response.
+
 ## v0.1.1 - 2026-07-05
 
 - Added a 50,000-cell geohash coverage cap so oversized high-precision requests

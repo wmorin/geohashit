@@ -3,6 +3,7 @@ import time
 
 import pytest
 
+from geohashit import __version__
 from geohashit.cover import (
     GeohashBudgetError,
     cover_shape,
@@ -11,6 +12,7 @@ from geohashit.cover import (
     geojson_to_geohashes,
     geojson_to_shape,
 )
+from geohashit.metadata import SERVICE_DESCRIPTION, SERVICE_NAME
 from geohashit.nominatim import (
     Nominatim,
     NominatimLookupError,
@@ -40,7 +42,8 @@ def test_service_index_lists_api_endpoints():
 
     assert response.status_code == 200
     payload = response.get_json()
-    assert payload['name'] == "Geohash'it"
+    assert payload['name'] == SERVICE_NAME
+    assert payload['description'] == SERVICE_DESCRIPTION
     assert payload['status'] == 'ok'
     assert [endpoint['path'] for endpoint in payload['endpoints']] == [
         '/multipolygons/point',
@@ -64,7 +67,8 @@ def test_openapi_route_describes_current_api_contract():
     assert response.status_code == 200
     spec = response.get_json()
     assert spec['openapi'] == '3.2.0'
-    assert spec['info']['title'] == "Geohash'it API"
+    assert spec['info']['title'] == '%s API' % SERVICE_NAME
+    assert spec['info']['version'] == __version__
     assert set(spec['paths']) == {
         '/',
         '/health',
