@@ -1,7 +1,11 @@
 from flask import Flask, jsonify
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
-from geohashit.cover import geojson_to_geohashes, geohashes_to_multipolygon
+from geohashit.cover import (
+    GeohashBudgetError,
+    geojson_to_geohashes,
+    geohashes_to_multipolygon,
+)
 from geohashit.nominatim import Nominatim, NominatimError, NominatimLookupError
 from geohashit.openapi import OPENAPI_SPEC
 from geohashit.validation import (
@@ -162,6 +166,8 @@ def error_response(code, message, status):
 def geohash_geojson(json_data, precision):
     try:
         return geojson_to_geohashes(json_data, precision)
+    except GeohashBudgetError as error:
+        raise ValidationError(str(error))
     except ValueError as error:
         raise ValidationError(str(error))
 

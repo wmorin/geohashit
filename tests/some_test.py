@@ -4,6 +4,7 @@ import time
 import pytest
 
 from geohashit.cover import (
+    GeohashBudgetError,
     geohash_bbox,
     geohashes_to_multipolygon,
     geojson_to_geohashes,
@@ -245,6 +246,17 @@ def test_feature_collection_geohashes_all_features():
     assert set(geohashes) == {'u09tv', 'u09ty'}
 
 
+def test_geojson_to_geohashes_rejects_over_budget_coverages():
+    with pytest.raises(GeohashBudgetError) as error:
+        geojson_to_geohashes(
+            feature_collection('u09tv', 'u09ty'),
+            5,
+            max_geohashes=1,
+        )
+
+    assert str(error.value) == 'geohash coverage exceeds the maximum of 1 cells'
+
+
 def test_small_polygon_returns_representative_geohash_at_coarse_precision():
     geohashes = geojson_to_geohashes(geohash_feature('u09tv'), 3)
 
@@ -328,6 +340,25 @@ def test_geojson_geohashes_accepts_form_precision():
 
     assert response.status_code == 200
     assert response.get_json() == {'geohashes': ['u09']}
+
+
+def test_geojson_route_returns_validation_error_for_over_budget_coverages(monkeypatch):
+    def over_budget(json_data, precision):
+        raise GeohashBudgetError('geohash coverage exceeds the maximum of 50000 cells')
+
+    monkeypatch.setattr('geohashit.app.geojson_to_geohashes', over_budget)
+
+    response = app.test_client().post(
+        '/geohashes/geojson?precision=5',
+        data={'geojson': json.dumps(geohash_feature('u09tv'))},
+    )
+
+    assert_error(
+        response,
+        400,
+        'validation_error',
+        'geohash coverage exceeds the maximum of 50000 cells',
+    )
 
 
 def test_city_multipolygon_uses_instance_method(monkeypatch):
