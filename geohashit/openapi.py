@@ -90,7 +90,7 @@ OPENAPI_SPEC = {
     'openapi': '3.2.0',
     'info': {
         'title': "Geohash'it API",
-        'version': '0.1.0',
+        'version': '0.1.1',
         'description': (
             'Convert places and GeoJSON shapes into geohash coverage polygons.'
         ),
