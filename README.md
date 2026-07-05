@@ -138,6 +138,10 @@ Body:
 Send either a `geojson` form field, a raw GeoJSON JSON body, or a JSON envelope
 with `geojson` and optional `precision` fields.
 
+Coverage requests are capped at 50,000 returned geohashes. Very large shapes at
+high precision return `validation_error` instead of tying up the server with an
+oversized response.
+
 Example:
 
 ```bash
@@ -165,6 +169,9 @@ Body:
 
 Send either a `geojson` form field, a raw GeoJSON JSON body, or a JSON envelope
 with `geojson` and optional `precision` fields.
+
+Coverage requests are capped at 50,000 returned geohashes before the multipolygon
+is built.
 
 ## Error Codes
 
