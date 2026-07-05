@@ -207,8 +207,9 @@ NOMINATIM_USER_AGENT="your-app/1.0 your-email@example.com" \
 ./start
 ```
 
-The client caches identical requests in memory and rate-limits outbound Nominatim
-requests to one request per second.
+The client caches identical requests in memory for up to one hour, capped at 512
+entries per process, and rate-limits outbound Nominatim requests to one request
+per second.
 
 ## Tests
 
