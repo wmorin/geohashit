@@ -23,12 +23,67 @@ class NominatimResponseError(NominatimError):
     pass
 
 
+class NominatimCache:
+    def __init__(self, entries, lock):
+        self.entries = entries
+        self.lock = lock
+
+    def clear(self):
+        with self.lock:
+            self.entries.clear()
+
+    def get(self, cache_key, max_size, ttl):
+        if max_size <= 0 or ttl <= 0:
+            return _CACHE_MISS
+
+        with self.lock:
+            cached = self.entries.get(cache_key)
+            if cached is None:
+                return _CACHE_MISS
+
+            created_at, content = cached
+            if time.monotonic() - created_at > ttl:
+                del self.entries[cache_key]
+                return _CACHE_MISS
+
+            self.entries.move_to_end(cache_key)
+            return content
+
+    def set(self, cache_key, content, max_size, ttl):
+        if max_size <= 0 or ttl <= 0:
+            return
+
+        with self.lock:
+            self.entries[cache_key] = (time.monotonic(), content)
+            self.entries.move_to_end(cache_key)
+            while len(self.entries) > max_size:
+                self.entries.popitem(last=False)
+
+
+class NominatimRateLimiter:
+    def __init__(self, lock):
+        self.lock = lock
+        self.last_request_at = 0
+
+    def wait(self, min_interval):
+        if min_interval <= 0:
+            return
+
+        with self.lock:
+            now = time.monotonic()
+            elapsed = now - self.last_request_at
+            if elapsed < min_interval:
+                time.sleep(min_interval - elapsed)
+            self.last_request_at = time.monotonic()
+
+
 class Nominatim:
     _cache = OrderedDict()
     _cache_max_size = 512
     _cache_ttl = 60 * 60
-    _last_request_at = 0
     _lock = threading.Lock()
+    _cache_store = NominatimCache(_cache, _lock)
+    _rate_limiter = NominatimRateLimiter(_lock)
 
     def __init__(
         self,
@@ -60,19 +115,10 @@ class Nominatim:
 
     @classmethod
     def clear_cache(cls):
-        with cls._lock:
-            cls._cache.clear()
+        cls._cache_store.clear()
 
     def _rate_limit(self):
-        if self.min_interval <= 0:
-            return
-
-        with self._lock:
-            now = time.monotonic()
-            elapsed = now - self.__class__._last_request_at
-            if elapsed < self.min_interval:
-                time.sleep(self.min_interval - elapsed)
-            self.__class__._last_request_at = time.monotonic()
+        self.__class__._rate_limiter.wait(self.min_interval)
 
     def _get_json(self, path, payload):
         cache_key = (self.url, path, tuple(sorted(payload.items())))
@@ -99,31 +145,19 @@ class Nominatim:
         return content
 
     def _cache_get(self, cache_key):
-        if self.cache_max_size <= 0 or self.cache_ttl <= 0:
-            return _CACHE_MISS
-
-        with self._lock:
-            cached = self.__class__._cache.get(cache_key)
-            if cached is None:
-                return _CACHE_MISS
-
-            created_at, content = cached
-            if time.monotonic() - created_at > self.cache_ttl:
-                del self.__class__._cache[cache_key]
-                return _CACHE_MISS
-
-            self.__class__._cache.move_to_end(cache_key)
-            return content
+        return self.__class__._cache_store.get(
+            cache_key,
+            self.cache_max_size,
+            self.cache_ttl,
+        )
 
     def _cache_set(self, cache_key, content):
-        if self.cache_max_size <= 0 or self.cache_ttl <= 0:
-            return
-
-        with self._lock:
-            self.__class__._cache[cache_key] = (time.monotonic(), content)
-            self.__class__._cache.move_to_end(cache_key)
-            while len(self.__class__._cache) > self.cache_max_size:
-                self.__class__._cache.popitem(last=False)
+        self.__class__._cache_store.set(
+            cache_key,
+            content,
+            self.cache_max_size,
+            self.cache_ttl,
+        )
 
     def get_city_from_geohash(self, geohash):
         decoded = pygeohash.decode(geohash)

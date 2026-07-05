@@ -537,6 +537,21 @@ def test_nominatim_cache_evicts_oldest_request():
     assert len(Nominatim._cache) == 2
 
 
+def test_nominatim_cache_expires_old_request():
+    Nominatim.clear_cache()
+    response = FakeResponse({'ok': True})
+    session = FakeSession(response)
+    nominatim = Nominatim(min_interval=0, session=session, cache_ttl=1)
+
+    cache_key = ('https://nominatim.openstreetmap.org', '/reverse', (('lat', 1),))
+    Nominatim._cache[cache_key] = (time.monotonic() - 2, {'stale': True})
+
+    assert nominatim._get_json('/reverse', {'lat': 1}) == {'ok': True}
+
+    assert len(session.calls) == 1
+    assert Nominatim._cache[cache_key][1] == {'ok': True}
+
+
 def test_nominatim_cache_is_scoped_by_base_url():
     Nominatim.clear_cache()
     first_session = FakeSession(FakeResponse({'name': 'first'}))
