@@ -1,4 +1,4 @@
-API_VERSION = '0.1.2'
+API_VERSION = '0.1.3'
 SERVICE_NAME = "Geohash'it"
 SERVICE_DESCRIPTION = (
     'Convert places and GeoJSON shapes into geohash coverage polygons.'

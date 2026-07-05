@@ -38,3 +38,6 @@ jobs:
 
       - name: Run tests
         run: uv run --frozen pytest
+
+      - name: Run ruff
+        run: uv run --frozen ruff check .
