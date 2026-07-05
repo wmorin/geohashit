@@ -463,7 +463,7 @@ def test_nominatim_defaults_to_https():
 
 
 def test_nominatim_sets_user_agent_timeout_and_checks_status():
-    Nominatim._cache = {}
+    Nominatim.clear_cache()
     response = FakeResponse({'ok': True})
     session = FakeSession(response)
     nominatim = Nominatim(
@@ -485,7 +485,7 @@ def test_nominatim_sets_user_agent_timeout_and_checks_status():
 
 
 def test_nominatim_caches_identical_requests():
-    Nominatim._cache = {}
+    Nominatim.clear_cache()
     response = FakeResponse({'ok': True})
     session = FakeSession(response)
     nominatim = Nominatim(min_interval=0, session=session)
@@ -496,8 +496,62 @@ def test_nominatim_caches_identical_requests():
     assert len(session.calls) == 1
 
 
+def test_nominatim_cache_evicts_oldest_request():
+    Nominatim.clear_cache()
+    response = FakeResponse({'ok': True})
+    session = FakeSession(response)
+    nominatim = Nominatim(min_interval=0, session=session, cache_max_size=2)
+
+    nominatim._get_json('/reverse', {'lat': 1})
+    nominatim._get_json('/reverse', {'lat': 2})
+    nominatim._get_json('/reverse', {'lat': 3})
+    nominatim._get_json('/reverse', {'lat': 1})
+
+    assert len(session.calls) == 4
+    assert len(Nominatim._cache) == 2
+
+
+def test_nominatim_cache_is_scoped_by_base_url():
+    Nominatim.clear_cache()
+    first_session = FakeSession(FakeResponse({'name': 'first'}))
+    second_session = FakeSession(FakeResponse({'name': 'second'}))
+    first = Nominatim(
+        url='https://first.example.com',
+        min_interval=0,
+        session=first_session,
+    )
+    second = Nominatim(
+        url='https://second.example.com',
+        min_interval=0,
+        session=second_session,
+    )
+
+    assert first._get_json('/reverse', {'lat': 1}) == {'name': 'first'}
+    assert second._get_json('/reverse', {'lat': 1}) == {'name': 'second'}
+
+    assert len(first_session.calls) == 1
+    assert len(second_session.calls) == 1
+
+
+def test_nominatim_cache_can_be_disabled():
+    Nominatim.clear_cache()
+    response = FakeResponse({'ok': True})
+    session = FakeSession(response)
+    nominatim = Nominatim(
+        min_interval=0,
+        session=session,
+        cache_max_size=0,
+    )
+
+    nominatim._get_json('/reverse', {'lat': 1})
+    nominatim._get_json('/reverse', {'lat': 1})
+
+    assert len(session.calls) == 2
+    assert len(Nominatim._cache) == 0
+
+
 def test_nominatim_rejects_non_json_response():
-    Nominatim._cache = {}
+    Nominatim.clear_cache()
     response = FakeResponse(json_error=ValueError('not json'))
     session = FakeSession(response)
     nominatim = Nominatim(min_interval=0, session=session)

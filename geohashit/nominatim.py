@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import os
 import threading
 import time
@@ -6,6 +7,8 @@ import pygeohash
 import requests
 
 from geohashit.place import Place
+
+_CACHE_MISS = object()
 
 
 class NominatimError(Exception):
@@ -21,7 +24,9 @@ class NominatimResponseError(NominatimError):
 
 
 class Nominatim:
-    _cache = {}
+    _cache = OrderedDict()
+    _cache_max_size = 512
+    _cache_ttl = 60 * 60
     _last_request_at = 0
     _lock = threading.Lock()
 
@@ -31,6 +36,8 @@ class Nominatim:
         timeout=10,
         user_agent=None,
         min_interval=1,
+        cache_max_size=None,
+        cache_ttl=None,
         session=None,
     ):
         self.url = url or os.environ.get(
@@ -43,7 +50,18 @@ class Nominatim:
             'geohashit/1.0 (https://github.com/wmorin/geohashit)',
         )
         self.min_interval = min_interval
+        self.cache_max_size = (
+            self.__class__._cache_max_size
+            if cache_max_size is None
+            else cache_max_size
+        )
+        self.cache_ttl = self.__class__._cache_ttl if cache_ttl is None else cache_ttl
         self.session = session or requests.Session()
+
+    @classmethod
+    def clear_cache(cls):
+        with cls._lock:
+            cls._cache.clear()
 
     def _rate_limit(self):
         if self.min_interval <= 0:
@@ -57,9 +75,10 @@ class Nominatim:
             self.__class__._last_request_at = time.monotonic()
 
     def _get_json(self, path, payload):
-        cache_key = (path, tuple(sorted(payload.items())))
-        if cache_key in self.__class__._cache:
-            return self.__class__._cache[cache_key]
+        cache_key = (self.url, path, tuple(sorted(payload.items())))
+        cached = self._cache_get(cache_key)
+        if cached is not _CACHE_MISS:
+            return cached
 
         self._rate_limit()
         try:
@@ -76,8 +95,35 @@ class Nominatim:
         except ValueError as error:
             raise NominatimResponseError('nominatim returned invalid JSON') from error
 
-        self.__class__._cache[cache_key] = content
+        self._cache_set(cache_key, content)
         return content
+
+    def _cache_get(self, cache_key):
+        if self.cache_max_size <= 0 or self.cache_ttl <= 0:
+            return _CACHE_MISS
+
+        with self._lock:
+            cached = self.__class__._cache.get(cache_key)
+            if cached is None:
+                return _CACHE_MISS
+
+            created_at, content = cached
+            if time.monotonic() - created_at > self.cache_ttl:
+                del self.__class__._cache[cache_key]
+                return _CACHE_MISS
+
+            self.__class__._cache.move_to_end(cache_key)
+            return content
+
+    def _cache_set(self, cache_key, content):
+        if self.cache_max_size <= 0 or self.cache_ttl <= 0:
+            return
+
+        with self._lock:
+            self.__class__._cache[cache_key] = (time.monotonic(), content)
+            self.__class__._cache.move_to_end(cache_key)
+            while len(self.__class__._cache) > self.cache_max_size:
+                self.__class__._cache.popitem(last=False)
 
     def get_city_from_geohash(self, geohash):
         decoded = pygeohash.decode(geohash)
