@@ -5,9 +5,11 @@ import pytest
 
 from geohashit.cover import (
     GeohashBudgetError,
+    cover_shape,
     geohash_bbox,
     geohashes_to_multipolygon,
     geojson_to_geohashes,
+    geojson_to_shape,
 )
 from geohashit.nominatim import (
     Nominatim,
@@ -244,6 +246,30 @@ def test_feature_collection_geohashes_all_features():
     geohashes = geojson_to_geohashes(feature_collection('u09tv', 'u09ty'), 5)
 
     assert set(geohashes) == {'u09tv', 'u09ty'}
+
+
+def test_cover_shape_rejects_invalid_mode():
+    shape = geojson_to_shape(geohash_feature('u09tv'))
+
+    with pytest.raises(ValueError) as error:
+        cover_shape(shape, precision=5, mode='outside')
+
+    assert str(error.value) == 'mode must be one of: center, inside, intersect'
+
+
+def test_cover_shape_supports_inside_mode():
+    shape = geojson_to_shape(geohash_feature('u09tv'))
+
+    assert cover_shape(shape, precision=5, mode='inside') == ['u09tv']
+
+
+def test_cover_shape_supports_intersect_mode():
+    shape = geojson_to_shape(geohash_feature('u09tv'))
+
+    geohashes = cover_shape(shape, precision=5, mode='intersect')
+
+    assert 'u09tv' in geohashes
+    assert len(geohashes) > 1
 
 
 def test_geojson_to_geohashes_rejects_over_budget_coverages():
