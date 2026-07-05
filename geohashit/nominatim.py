@@ -81,9 +81,10 @@ class Nominatim:
     _cache = OrderedDict()
     _cache_max_size = 512
     _cache_ttl = 60 * 60
-    _lock = threading.Lock()
-    _cache_store = NominatimCache(_cache, _lock)
-    _rate_limiter = NominatimRateLimiter(_lock)
+    _cache_lock = threading.Lock()
+    _rate_limit_lock = threading.Lock()
+    _cache_store = NominatimCache(_cache, _cache_lock)
+    _rate_limiter = NominatimRateLimiter(_rate_limit_lock)
 
     def __init__(
         self,
@@ -187,7 +188,8 @@ class Nominatim:
             'limit': 10,
             'polygon_geojson': 1,
         }
-        return self._place_from_search_result(self._get_place(self._get_json('/search', payload)))
+        place = self._get_place(self._get_json('/search', payload))
+        return self._place_from_search_result(place)
 
     def get_city_from_name(self, city_name, country_code, county_name=''):
         payload = {
@@ -200,7 +202,8 @@ class Nominatim:
         if county_name:
             payload['county'] = county_name
 
-        return self._place_from_search_result(self._get_place(self._get_json('/search', payload)))
+        place = self._get_place(self._get_json('/search', payload))
+        return self._place_from_search_result(place)
 
     def _reverse_payload(self, lat, lon):
         return {
@@ -232,7 +235,13 @@ class Nominatim:
             raise NominatimResponseError('nominatim search returned an unexpected response')
 
         for place in places:
+            if not isinstance(place, dict):
+                continue
             geojson = place.get('geojson', {})
+            if not isinstance(geojson, dict):
+                continue
+            if 'type' not in geojson:
+                continue
             if geojson.get('type') == 'Point':
                 continue
             if place.get('type') in ('city', 'administrative', 'residential'):
@@ -241,18 +250,33 @@ class Nominatim:
         raise NominatimLookupError('nominatim search did not return a polygon')
 
     def _place_from_search_result(self, content):
+        try:
+            place_id = content['place_id']
+            lat = content['lat']
+            lon = content['lon']
+            geojson = content['geojson']
+        except (KeyError, TypeError) as error:
+            raise NominatimResponseError(
+                'nominatim search returned an incomplete place'
+            ) from error
+
+        if not isinstance(geojson, dict) or geojson.get('type') == 'Point':
+            raise NominatimResponseError(
+                'nominatim search returned an invalid place geometry'
+            )
+
         return Place(
-            place_id=content['place_id'],
+            place_id=place_id,
             centroid={
-                'lat': content['lat'],
-                'lon': content['lon'],
+                'lat': lat,
+                'lon': lon,
             },
             geometry={
                 'type': 'FeatureCollection',
                 'features': [{
                     'type': 'Feature',
                     'properties': {},
-                    'geometry': content['geojson'],
+                    'geometry': geojson,
                 }],
             },
         )

@@ -4,6 +4,7 @@ import time
 import pytest
 
 from geohashit import __version__
+from geohashit.app import create_app
 from geohashit.cover import (
     GeohashBudgetError,
     cover_shape,
@@ -231,6 +232,9 @@ class FakeNominatim:
     def __init__(self, geometry):
         self.geometry = geometry
 
+    def get_city_from_geohash(self, geohash):
+        return FakePlace(self.geometry)
+
     def get_city_from_name(self, city_name, country_code):
         return FakePlace(self.geometry)
 
@@ -396,6 +400,18 @@ def test_city_multipolygon_uses_instance_method(monkeypatch):
     monkeypatch.setattr('geohashit.app.Nominatim', lambda: FakeNominatim(geometry))
 
     response = app.test_client().get(
+        '/multipolygons/city?city_name=Paris&country_code=fr&precision=5'
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()['geojson']['type'] == 'MultiPolygon'
+
+
+def test_create_app_accepts_nominatim_factory():
+    geometry = feature_collection('u09tv')
+    injected_app = create_app(nominatim_factory=lambda: FakeNominatim(geometry))
+
+    response = injected_app.test_client().get(
         '/multipolygons/city?city_name=Paris&country_code=fr&precision=5'
     )
 
@@ -595,6 +611,10 @@ def test_nominatim_cache_can_be_disabled():
     assert len(Nominatim._cache) == 0
 
 
+def test_nominatim_cache_and_rate_limiter_use_separate_locks():
+    assert Nominatim._cache_store.lock is not Nominatim._rate_limiter.lock
+
+
 def test_nominatim_rejects_non_json_response():
     Nominatim.clear_cache()
     response = FakeResponse(json_error=ValueError('not json'))
@@ -617,6 +637,48 @@ def test_nominatim_rejects_search_without_polygon():
         }])
 
     assert str(error.value) == 'nominatim search did not return a polygon'
+
+
+def test_nominatim_skips_malformed_search_rows_before_valid_polygon():
+    nominatim = Nominatim(min_interval=0)
+    place = {
+        'place_id': 1,
+        'lat': '48.8566',
+        'lon': '2.3522',
+        'type': 'city',
+        'geojson': {'type': 'Polygon', 'coordinates': []},
+    }
+
+    assert nominatim._get_place([None, {'type': 'city'}, place]) == place
+
+
+def test_nominatim_rejects_incomplete_search_place():
+    nominatim = Nominatim(min_interval=0)
+
+    with pytest.raises(NominatimResponseError) as error:
+        nominatim._place_from_search_result({
+            'place_id': 1,
+            'lat': '48.8566',
+            'type': 'city',
+            'geojson': {'type': 'Polygon', 'coordinates': []},
+        })
+
+    assert str(error.value) == 'nominatim search returned an incomplete place'
+
+
+def test_nominatim_rejects_invalid_search_place_geometry():
+    nominatim = Nominatim(min_interval=0)
+
+    with pytest.raises(NominatimResponseError) as error:
+        nominatim._place_from_search_result({
+            'place_id': 1,
+            'lat': '48.8566',
+            'lon': '2.3522',
+            'type': 'city',
+            'geojson': {'type': 'Point', 'coordinates': [2.3522, 48.8566]},
+        })
+
+    assert str(error.value) == 'nominatim search returned an invalid place geometry'
 
 
 def test_nominatim_rejects_reverse_without_city():

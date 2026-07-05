@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, current_app, jsonify
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from geohashit.cover import (
@@ -21,9 +21,10 @@ from geohashit.validation import (
     get_required_arg,
 )
 
-def create_app():
+def create_app(nominatim_factory=None):
     app = Flask('geohashit')
     app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
+    app.config['NOMINATIM_FACTORY'] = nominatim_factory or (lambda: Nominatim())
 
     register_error_handlers(app)
     register_routes(app)
@@ -77,7 +78,7 @@ def register_routes(app):
         geohash = get_geohash_arg('geohash')
         precision = get_precision_arg(default=DEFAULT_PRECISION)
 
-        city = Nominatim().get_city_from_geohash(geohash)
+        city = get_nominatim().get_city_from_geohash(geohash)
         geohashes = geohash_geojson(city.geometry, precision)
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes))
@@ -90,7 +91,7 @@ def register_routes(app):
         precision = get_precision_arg()
         simplify = get_bool_arg('simplify')
 
-        nominatim = Nominatim()
+        nominatim = get_nominatim()
         if poly_type == 'city':
             place = nominatim.get_city_from_point(lat, lon)
         else:
@@ -106,7 +107,7 @@ def register_routes(app):
         country_code = get_required_arg('country_code')
         precision = get_precision_arg(default=DEFAULT_PRECISION)
 
-        city = Nominatim().get_city_from_name(city_name, country_code)
+        city = get_nominatim().get_city_from_name(city_name, country_code)
         geohashes = geohash_geojson(city.geometry, precision)
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes))
@@ -129,6 +130,10 @@ def register_routes(app):
 
 def error_response(code, message, status):
     return jsonify(error={'code': code, 'message': message, 'status': status}), status
+
+
+def get_nominatim():
+    return current_app.config['NOMINATIM_FACTORY']()
 
 
 def geohash_geojson(json_data, precision):

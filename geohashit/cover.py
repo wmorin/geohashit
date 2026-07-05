@@ -48,60 +48,64 @@ def decode_geohash(geohash):
     return decoded.latitude, decoded.longitude
 
 
-def add_geohash(geohashes, geohash, budget):
+def emit_geohash(geohash, budget):
     if budget is not None:
         budget.add()
-    geohashes.append(geohash)
+    yield geohash
 
 
 def cover_inside(shape, cell, geohash, precision, level, budget):
     if shape.contains(cell):
-        return [(geohash, False)]
+        yield from emit_geohash(geohash, budget)
+        return
     if level < precision and cell.intersects(shape):
-        return [
-            (covered_geohash, True)
-            for covered_geohash in cover_shape(
-                shape, precision, 'inside', level + 1, geohash, budget
-            )
-        ]
-    return []
+        yield from iter_cover_shape(
+            shape,
+            precision,
+            'inside',
+            level + 1,
+            geohash,
+            budget,
+        )
+        return
 
 
 def cover_center(shape, cell, geohash, precision, level, budget):
     if shape.contains(cell):
-        return [(geohash, False)]
+        yield from emit_geohash(geohash, budget)
+        return
     if level < precision and cell.intersects(shape):
-        return [
-            (covered_geohash, True)
-            for covered_geohash in cover_shape(
-                cell.intersection(shape),
-                precision,
-                'center',
-                level + 1,
-                geohash,
-                budget,
-            )
-        ]
+        yield from iter_cover_shape(
+            cell.intersection(shape),
+            precision,
+            'center',
+            level + 1,
+            geohash,
+            budget,
+        )
+        return
     if level == precision:
         lat, lon = decode_geohash(geohash)
         if shape.contains(Point(lon, lat)):
-            return [(geohash, False)]
-    return []
+            yield from emit_geohash(geohash, budget)
 
 
 def cover_intersect(shape, cell, geohash, precision, level, budget):
     if shape.contains(cell):
-        return [(geohash, False)]
+        yield from emit_geohash(geohash, budget)
+        return
     if level < precision and cell.intersects(shape):
-        return [
-            (covered_geohash, True)
-            for covered_geohash in cover_shape(
-                shape, precision, 'intersect', level + 1, geohash, budget
-            )
-        ]
+        yield from iter_cover_shape(
+            shape,
+            precision,
+            'intersect',
+            level + 1,
+            geohash,
+            budget,
+        )
+        return
     if level == precision and cell.intersects(shape):
-        return [(geohash, False)]
-    return []
+        yield from emit_geohash(geohash, budget)
 
 
 COVER_MODE_HANDLERS = {
@@ -111,22 +115,21 @@ COVER_MODE_HANDLERS = {
 }
 
 
-def cover_shape(shape, precision=12, mode='center', level=1, prefix='', budget=None):
+def iter_cover_shape(shape, precision=12, mode='center', level=1, prefix='', budget=None):
     if mode not in COVER_MODE_HANDLERS:
         raise ValueError('mode must be one of: %s' % ', '.join(COVER_MODES))
 
     cover_cell = COVER_MODE_HANDLERS[mode]
-    geohashes = []
 
     for char in GEOHASH_CHARS:
         geohash = prefix + char
         bounds = geohash_bbox(geohash)
         cell = box(bounds['w'], bounds['s'], bounds['e'], bounds['n'])
-        covered = cover_cell(shape, cell, geohash, precision, level, budget)
-        for covered_geohash, already_budgeted in covered:
-            add_geohash(geohashes, covered_geohash, None if already_budgeted else budget)
+        yield from cover_cell(shape, cell, geohash, precision, level, budget)
 
-    return geohashes
+
+def cover_shape(shape, precision=12, mode='center', level=1, prefix='', budget=None):
+    return list(iter_cover_shape(shape, precision, mode, level, prefix, budget))
 
 
 def geojson_to_shape(data):
