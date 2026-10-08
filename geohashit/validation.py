@@ -3,6 +3,8 @@ import math
 import pygeohash
 from flask import request
 
+from geohashit.json_validation import validate_json_depth
+
 MIN_PRECISION = 1
 MAX_PRECISION = 8
 DEFAULT_PRECISION = 5
@@ -39,6 +41,10 @@ def get_json_payload():
         raise ValidationError('geojson must be valid JSON')
     if payload is None:
         raise ValidationError('geojson must be valid JSON')
+    try:
+        validate_json_depth(payload)
+    except ValueError as error:
+        raise ValidationError(str(error))
     return payload
 
 

@@ -7,6 +7,8 @@ import shapely.errors
 from shapely.geometry import MultiPolygon, Point, Polygon, box, mapping
 from shapely.ops import unary_union
 
+from geohashit.json_validation import validate_json_depth
+
 GEOHASH_CHARS = (
     '0', '1', '2', '3', '4', '5', '6', '7',
     '8', '9', 'b', 'c', 'd', 'e', 'f', 'g',
@@ -282,6 +284,7 @@ def geojson_to_shape(data):
         except (json.JSONDecodeError, RecursionError):
             raise ValueError('geojson must be valid JSON')
 
+    validate_json_depth(data)
     validate_geojson(data, [0, 0, 0])
     try:
         if data['type'] == 'FeatureCollection':

@@ -46,6 +46,8 @@ cells. It stops work that exceeds its time or traversal budget. The API permits
 10,000 input/normalized positions and 1,000 geometry components, with bounded
 collection union work, 100,000 cell visits, and 50,000 output cells. For complex
 boundaries, simplify your source geometry or lower the precision.
+API JSON payloads are limited to 64 nested arrays/objects, independently of the
+Python interpreter's recursion limit.
 
 For example, starting from a geopoint, you can produce a geohashed city boundary:
 

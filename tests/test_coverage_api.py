@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from geohashit.json_validation import MAX_JSON_DEPTH, validate_json_depth
 from shapely.geometry import box, mapping, shape
 
 from geohashit.app import app, create_app
@@ -147,34 +148,46 @@ def test_openapi_describes_mode_everywhere_and_envelope_fields():
 
 @pytest.mark.parametrize('source', ['form', 'body'])
 def test_deeply_nested_json_is_validation_error(source):
-    # Still well below the 1MB payload limit, but beyond the JSON decoder's stack.
-    data = '[' * 20000 + '0' + ']' * 20000
+    data = '[' * (MAX_JSON_DEPTH + 1) + '0' + ']' * (MAX_JSON_DEPTH + 1)
     kwargs = {'data': {'geojson': data}} if source == 'form' else {
         'data': data, 'content_type': 'application/json',
     }
     response = app.test_client().post('/geohashes/geojson', **kwargs)
     assert response.status_code == 400
     assert response.get_json()['error']['code'] == 'validation_error'
+    assert response.get_json()['error']['message'] == 'JSON nesting exceeds the maximum depth of 64'
 
 
 def test_deeply_nested_json_on_get_argument_path_is_validation_error():
-    data = '[' * 20000 + '0' + ']' * 20000
+    data = '[' * (MAX_JSON_DEPTH + 1) + '0' + ']' * (MAX_JSON_DEPTH + 1)
     response = app.test_client().get(
         '/multipolygons/city?city_name=Paris&country_code=fr',
         data=data, content_type='application/json',
     )
     assert response.status_code == 400
     assert response.get_json()['error']['code'] == 'validation_error'
+    assert response.get_json()['error']['message'] == 'JSON nesting exceeds the maximum depth of 64'
 
 
 def test_deeply_nested_json_mode_argument_path_is_validation_error():
-    data = '[' * 20000 + '0' + ']' * 20000
+    data = '[' * (MAX_JSON_DEPTH + 1) + '0' + ']' * (MAX_JSON_DEPTH + 1)
     response = app.test_client().get(
         '/multipolygons/city?city_name=Paris&country_code=fr&precision=5',
         data=data, content_type='application/json',
     )
     assert response.status_code == 400
     assert response.get_json()['error']['code'] == 'validation_error'
+    assert response.get_json()['error']['message'] == 'JSON nesting exceeds the maximum depth of 64'
+
+
+@pytest.mark.parametrize('container', ['array', 'object'])
+def test_json_nesting_limit_has_an_explicit_inclusive_boundary(container):
+    value = 'literal brackets [] {} and escaped quote " do not count'
+    for _ in range(MAX_JSON_DEPTH):
+        value = [value] if container == 'array' else {'value': value}
+    validate_json_depth(value)
+    with pytest.raises(ValueError, match='maximum depth of 64'):
+        validate_json_depth([value])
 
 
 def crossing_strips(count=300):
