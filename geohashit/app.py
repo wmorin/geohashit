@@ -17,6 +17,7 @@ from geohashit.validation import (
     get_float_arg,
     get_geohash_arg,
     get_geojson_payload,
+    get_mode_arg,
     get_precision_arg,
     get_required_arg,
 )
@@ -77,9 +78,10 @@ def register_routes(app):
     def geohash_multipolygon():
         geohash = get_geohash_arg('geohash')
         precision = get_precision_arg(default=DEFAULT_PRECISION)
+        mode = get_mode_arg()
 
         city = get_nominatim().get_city_from_geohash(geohash)
-        geohashes = geohash_geojson(city.geometry, precision)
+        geohashes = geohash_geojson(city.geometry, precision, mode)
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes))
 
@@ -90,6 +92,7 @@ def register_routes(app):
         poly_type = get_choice_arg('type', ('city', 'country'))
         precision = get_precision_arg()
         simplify = get_bool_arg('simplify')
+        mode = get_mode_arg()
 
         nominatim = get_nominatim()
         if poly_type == 'city':
@@ -97,7 +100,7 @@ def register_routes(app):
         else:
             place = nominatim.get_country_from_point(lat, lon)
 
-        geohashes = geohash_geojson(place.geometry, precision)
+        geohashes = geohash_geojson(place.geometry, precision, mode)
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes, simplify))
 
@@ -106,9 +109,10 @@ def register_routes(app):
         city_name = get_required_arg('city_name')
         country_code = get_required_arg('country_code')
         precision = get_precision_arg(default=DEFAULT_PRECISION)
+        mode = get_mode_arg()
 
         city = get_nominatim().get_city_from_name(city_name, country_code)
-        geohashes = geohash_geojson(city.geometry, precision)
+        geohashes = geohash_geojson(city.geometry, precision, mode)
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes))
 
@@ -117,13 +121,13 @@ def register_routes(app):
         json_data = get_geojson_payload()
         precision = get_precision_arg(default=DEFAULT_PRECISION)
 
-        return jsonify(geohashes=geohash_geojson(json_data, precision))
+        return jsonify(geohashes=geohash_geojson(json_data, precision, get_mode_arg()))
 
     @app.route('/multipolygons/geojson', methods=['POST'])
     def geojson_multipolygon():
         json_data = get_geojson_payload()
         precision = get_precision_arg(default=DEFAULT_PRECISION)
-        geohashes = geohash_geojson(json_data, precision)
+        geohashes = geohash_geojson(json_data, precision, get_mode_arg())
 
         return jsonify(geojson=geohashes_to_multipolygon(geohashes))
 
@@ -136,9 +140,12 @@ def get_nominatim():
     return current_app.config['NOMINATIM_FACTORY']()
 
 
-def geohash_geojson(json_data, precision):
+def geohash_geojson(json_data, precision, mode=None):
     try:
-        return geojson_to_geohashes(json_data, precision)
+        # Preserve the legacy call contract as well as its fallback when omitted.
+        if mode is None:
+            return geojson_to_geohashes(json_data, precision)
+        return geojson_to_geohashes(json_data, precision, mode=mode)
     except GeohashBudgetError as error:
         raise ValidationError(str(error))
     except ValueError as error:

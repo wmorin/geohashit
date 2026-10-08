@@ -8,6 +8,36 @@ permissions:
   contents: read
 
 jobs:
+  playground:
+    name: Browser playground
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install uv for cross-language parity checks
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "0.11.26"
+      - name: Install Python API for parity checks
+        run: uv sync --frozen --python 3.13
+      - name: Verify vendored geometry bundle
+        run: |
+          npm run vendor:engine
+          git diff --exit-code -- docs/vendor/polyclip.js
+      - name: Test browser geometry engine
+        run: npm test
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test playground interactions
+        run: npm run test:browser
+
   pytest:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest

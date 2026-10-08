@@ -1,0 +1,8 @@
+{
+  "type": "Feature",
+  "properties": {"name": "Delivery zone with exclusion", "note": "Synthetic demonstration geometry created for Geohash'it. The central hole represents an excluded delivery area."},
+  "geometry": {"type": "Polygon", "coordinates": [
+    [[2.302,48.844],[2.338,48.839],[2.367,48.843],[2.385,48.862],[2.373,48.883],[2.347,48.886],[2.318,48.877],[2.302,48.858],[2.302,48.844]],
+    [[2.337,48.854],[2.337,48.869],[2.358,48.869],[2.358,48.854],[2.337,48.854]]
+  ]}
+}

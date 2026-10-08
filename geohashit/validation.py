@@ -1,9 +1,12 @@
+import math
+
 import pygeohash
 from flask import request
 
 MIN_PRECISION = 1
 MAX_PRECISION = 8
 DEFAULT_PRECISION = 5
+MISSING = object()
 
 
 class ValidationError(Exception):
@@ -30,7 +33,10 @@ def get_json_payload():
     if not request.is_json:
         return None
 
-    payload = request.get_json(silent=True)
+    try:
+        payload = request.get_json(silent=True)
+    except RecursionError:
+        raise ValidationError('geojson must be valid JSON')
     if payload is None:
         raise ValidationError('geojson must be valid JSON')
     return payload
@@ -61,6 +67,8 @@ def get_float_arg(name, minimum=None, maximum=None):
     except ValueError:
         raise ValidationError('%s must be a number' % name)
 
+    if not math.isfinite(parsed):
+        raise ValidationError('%s must be a finite number' % name)
     if minimum is not None and parsed < minimum:
         raise ValidationError('%s must be at least %s' % (name, minimum))
     if maximum is not None and parsed > maximum:
@@ -69,23 +77,41 @@ def get_float_arg(name, minimum=None, maximum=None):
     return parsed
 
 
-def get_precision_arg(default=None):
-    raw_value = request.args.get('precision')
-    if raw_value is None or raw_value == '':
-        raw_value = request.form.get('precision')
-    if raw_value is None or raw_value == '':
-        payload = request.get_json(silent=True) if request.is_json else None
+def get_coverage_arg(name):
+    # Query parameters override form/envelope values, including invalid values.
+    if name in request.args:
+        return request.args[name]
+    if name in request.form:
+        return request.form[name]
+    if request.is_json:
+        payload = get_json_payload()
         if isinstance(payload, dict):
-            raw_value = payload.get('precision')
+            return payload.get(name, MISSING)
+    return MISSING
 
-    if raw_value is None or raw_value == '':
+
+def get_mode_arg():
+    value = get_coverage_arg('mode')
+    if value is MISSING:
+        return None
+    if not isinstance(value, str) or value not in ('center', 'inside', 'intersect'):
+        raise ValidationError('mode must be one of: center, inside, intersect')
+    return value
+
+
+def get_precision_arg(default=None):
+    raw_value = get_coverage_arg('precision')
+
+    if raw_value is MISSING or raw_value == '':
         if default is not None:
             return default
         raise ValidationError('precision is required')
 
+    if isinstance(raw_value, bool) or not isinstance(raw_value, (int, str)):
+        raise ValidationError('precision must be an integer')
     try:
         precision = int(raw_value)
-    except ValueError:
+    except (ValueError, TypeError, OverflowError):
         raise ValidationError('precision must be an integer')
 
     if precision < MIN_PRECISION or precision > MAX_PRECISION:

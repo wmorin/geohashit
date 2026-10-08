@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Turn a shape into compact geohash coverage. Explore precision and coverage rules, then export GeoJSON or geohash IDs. Runs locally in your browser.">
+  <meta name="theme-color" content="#184d40">
+  <meta property="og:title" content="Geohash'it — a little shape, a lot of possibilities">
+  <meta property="og:description" content="An interactive geohash coverage playground. Draw, compare, and export your shape.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://wmorin.github.io/geohashit/playground.png">
+  <meta property="og:url" content="https://wmorin.github.io/geohashit/">
+  <link rel="canonical" href="https://wmorin.github.io/geohashit/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+  <title>Geohash'it — coverage playground</title>
+</head>
+<body>
+  <a class="skip-link" href="#controls">Skip to coverage settings</a>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Geohash'it home"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M3 3h12v12H3zm14 0h12v12H17zM3 17h12v12H3z"/><path d="M17 17h12v12H17z" opacity=".35"/></svg><span>geohash<span class="brand-apostrophe">’</span>it</span></a>
+    <span class="header-note"><span class="live-dot"></span>Small cells. Big possibilities.</span>
+    <a class="github-link" href="https://github.com/wmorin/geohashit" target="_blank" rel="noopener">View on GitHub <span aria-hidden="true">↗</span></a>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <div><p class="eyebrow">THE COVERAGE PLAYGROUND</p><h1 id="page-title">Give your shape an address.</h1><p class="intro-copy">From a city boundary to a delivery zone. Explore how geohash cells cover a shape, then take the result with you.</p></div>
+      <div class="privacy-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4m-4 5v2"/></svg><span>Your geometry stays<br><strong>in your browser.</strong></span></div>
+    </section>
+    <div class="workspace">
+      <aside class="controls-panel" id="controls" aria-label="Coverage settings">
+        <section class="control-section shape-section">
+          <div class="section-title"><span class="step">01</span><h2>Start with a shape</h2></div>
+          <label class="field-label" for="preset">Example shape</label>
+          <select id="preset"><option value="paris">Paris · city boundary</option><option value="france">France · mainland</option><option value="delivery">Delivery zone · with a hole</option><option value="custom" hidden>Your own shape</option></select>
+          <p class="field-help" id="shape-note">A simplified city boundary from the project’s benchmark fixtures.</p>
+          <div class="input-actions"><button type="button" class="secondary-button" id="import-button"><span aria-hidden="true">↥</span> Import GeoJSON</button><button type="button" class="secondary-button" id="draw-button"><span aria-hidden="true">◇</span> Draw a shape</button></div>
+          <div class="draw-controls" id="draw-controls" hidden><p id="draw-help">Click the map to add points. Add at least three, then finish.</p><div class="input-actions"><button type="button" class="secondary-button" id="draw-undo">Undo point</button><button type="button" class="primary-button" id="draw-finish" disabled>Finish shape</button><button type="button" class="text-button" id="draw-cancel">Cancel</button></div></div>
+        </section>
+        <section class="control-section">
+          <div class="section-title"><span class="step">02</span><h2>Find the right fit</h2></div>
+          <div class="precision-heading"><label class="field-label" for="precision">Maximum precision</label><output for="precision" id="precision-value">5</output></div>
+          <input type="range" id="precision" min="1" max="8" value="5" step="1" aria-describedby="precision-help">
+          <div class="range-labels"><span>1 · broader</span><span>8 · finer</span></div>
+          <p class="field-help" id="precision-help">Interior cells stay compact; only edges need finer detail.</p>
+          <fieldset class="mode-fieldset"><legend class="field-label">Coverage rule</legend>
+            <label class="mode-option"><input type="radio" name="mode" value="center" checked><span class="mode-mark" aria-hidden="true"></span><span><strong>Center</strong><small>Include a cell if its center is in the shape.</small></span><span class="mode-tag">Balanced</span></label>
+            <label class="mode-option"><input type="radio" name="mode" value="inside"><span class="mode-mark" aria-hidden="true"></span><span><strong>Inside</strong><small>Only cells entirely inside the shape.</small></span></label>
+            <label class="mode-option"><input type="radio" name="mode" value="intersect"><span class="mode-mark" aria-hidden="true"></span><span><strong>Intersect</strong><small>Include every cell that touches the shape.</small></span></label>
+          </fieldset>
+          <div class="rule-explanation" id="rule-explanation">A balanced approximation. Some small gaps and spill beyond the boundary are expected.</div>
+        </section>
+        <section class="control-section export-section">
+          <div class="section-title"><span class="step">03</span><h2>Make it yours</h2></div>
+          <button type="button" class="primary-button export-main" id="download-geojson" disabled>Download GeoJSON <span aria-hidden="true">↓</span></button>
+          <div class="input-actions"><button type="button" class="secondary-button" id="download-ids" disabled>Geohash IDs <span aria-hidden="true">↓</span></button><button type="button" class="secondary-button" id="share-button">Copy preset link <span aria-hidden="true">↗</span></button></div>
+          <p class="field-help" id="export-help">Compact cells, ready for your map or spatial index.</p>
+        </section>
+      </aside>
+      <section class="results-panel" aria-label="Coverage result">
+        <div class="map-toolbar"><div><span class="map-title" id="map-title">Paris</span><span class="map-subtitle" id="map-subtitle">48.86° N, 2.35° E</span></div><button type="button" class="map-fit" id="fit-button" aria-label="Fit map to shape">⌖ <span>Fit shape</span></button></div>
+        <div class="map-container"><div id="map" role="region" aria-label="Interactive shape and geohash coverage map. Use arrow keys to pan, plus and minus to zoom." tabindex="0"></div><div class="map-overlay" id="map-message" role="status" aria-live="polite">Preparing your coverage…</div><div class="map-legend"><span><i class="legend-shape"></i>Original shape</span><span><i class="legend-cell"></i>Geohash cells</span></div></div>
+        <div class="map-options"><label><input type="checkbox" id="show-shape" checked> Original shape</label><label><input type="checkbox" id="show-cells" checked> Compact cells</label><label class="basemap-option"><input type="checkbox" id="show-basemap"> Street map <span class="optional-label">online</span></label></div>
+        <div class="metrics" aria-label="Coverage metrics" aria-live="polite"><div class="metric"><span>Geohash cells</span><strong id="metric-count">—</strong><small id="metric-time">Waiting for coverage</small></div><div class="metric"><span>Export size</span><strong id="metric-size">—</strong><small>GeoJSON · uncompressed</small></div><div class="metric"><span><i class="metric-dot missed-dot"></i>Missed area</span><strong id="metric-missed">—</strong><small id="metric-missed-percent">Inside shape, outside cells</small></div><div class="metric"><span><i class="metric-dot spill-dot"></i>Spill area</span><strong id="metric-spill">—</strong><small id="metric-spill-percent">Outside shape, inside cells</small></div></div>
+        <p class="metric-footnote" id="metric-footnote">Area estimates use spherical geometry. Compare coverage rules to see the trade-off.</p>
+      </section>
+    </div>
+    <section class="developer-section" aria-labelledby="developer-title"><div><p class="eyebrow">FROM PLAYGROUND TO PROJECT</p><h2 id="developer-title">Same shape. Your own code.</h2><p>Run the Python library or a local API with the settings above.</p><a href="https://github.com/wmorin/geohashit#installation" target="_blank" rel="noopener">Installation & API docs <span aria-hidden="true">↗</span></a></div><div class="code-card"><div class="code-toolbar"><div role="tablist" aria-label="Code language"><button type="button" id="python-tab" role="tab" aria-selected="true" aria-controls="code-output">Python</button><button type="button" id="curl-tab" role="tab" aria-selected="false" aria-controls="code-output" tabindex="-1">curl</button></div><button type="button" id="copy-code" aria-label="Copy code example">Copy <span aria-hidden="true">▢</span></button></div><pre id="code-output" role="tabpanel" aria-labelledby="python-tab" tabindex="0"><code id="code-content"></code></pre><p class="code-note">Uses the selected input shape: <button type="button" class="text-button" id="download-input" disabled>download shape.geojson ↓</button></p></div></section>
+    <footer><p>Made for curious maps. <a href="https://github.com/wmorin/geohashit" target="_blank" rel="noopener">Geohash’it is open source.</a></p><p>Paris & France are illustrative project fixtures. <span>Basemap © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>.</span></p></footer>
+  </main>
+  <dialog id="import-dialog" aria-labelledby="import-title"><form method="dialog" class="dialog-header"><h2 id="import-title">Bring your own shape</h2><button class="close-button" aria-label="Close import dialog">×</button></form><p>Paste or upload a Polygon or MultiPolygon, including GeoJSON Features and FeatureCollections. Up to 1 MB.</p><label class="upload-label" for="geojson-file">Choose a .geojson or .json file <span aria-hidden="true">↥</span></label><input id="geojson-file" type="file" accept=".geojson,.json,application/geo+json,application/json"><label class="field-label" for="geojson-input">Or paste GeoJSON</label><textarea id="geojson-input" rows="9" spellcheck="false" placeholder='{"type":"Polygon","coordinates":[…]}'></textarea><p class="dialog-error" id="import-error" role="alert"></p><div class="dialog-footer"><span>Processed on this device.</span><button type="button" class="primary-button" id="import-apply">Use this shape</button></div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <noscript><p class="noscript">Enable JavaScript to explore coverage. The <a href="https://github.com/wmorin/geohashit">Python library and API</a> also work without this playground.</p></noscript>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
