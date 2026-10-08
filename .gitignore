@@ -91,3 +91,6 @@ ENV/
 # Rope project settings
 .ropeproject
 .gstack/
+node_modules/
+test-results/
+playwright-report/

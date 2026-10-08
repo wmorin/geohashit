@@ -8,7 +8,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.26 /uv /uvx /bin/
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY geohashit ./geohashit
 COPY server.py ./server.py
 

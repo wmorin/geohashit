@@ -1,0 +1,15 @@
+{
+  "name": "geohashit-playground",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests-js/engine.test.js",
+    "test:browser": "playwright test",
+    "vendor:engine": "esbuild node_modules/polyclip-ts/dist/esm/index.js --bundle --format=esm --minify --legal-comments=inline --outfile=docs/vendor/polyclip.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "esbuild": "0.28.2",
+    "polyclip-ts": "0.16.8"
+  }
+}

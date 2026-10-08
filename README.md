@@ -2,10 +2,52 @@
 
 [![Test](https://github.com/wmorin/geohashit/actions/workflows/test.yml/badge.svg)](https://github.com/wmorin/geohashit/actions/workflows/test.yml)
 
-Geohash'it is a small Flask API that turns places or GeoJSON shapes into geohash
-coverage polygons. It can resolve a point or city through OpenStreetMap Nominatim,
-cover the resulting shape with geohashes, and return either the geohash list or a
-GeoJSON MultiPolygon.
+**Turn a region into a compact geohash index. See the accuracy–size tradeoff
+before you use it.**
+
+### [Try the coverage playground →](https://wmorin.github.io/geohashit/)
+
+[![Geohash'it coverage playground](docs/playground.png)](https://wmorin.github.io/geohashit/)
+
+Start with Paris, draw a delivery zone, or import a GeoJSON polygon.
+Change precision and coverage mode, compare missed area and spill outside the
+boundary, then download cell IDs or GeoJSON. No account or server setup needed.
+Uploaded shapes are processed locally in your browser; the optional street map
+requests tiles from OpenStreetMap when enabled. Preset links can be shared without
+uploading any geometry.
+
+Geohash'it also includes a Flask API for pipelines and applications. It can resolve
+a point or city through OpenStreetMap Nominatim, cover the shape with geohashes,
+and return either the cell IDs or a GeoJSON MultiPolygon.
+
+## Choose your coverage
+
+| Mode | Includes a cell when… | Useful for |
+| --- | --- | --- |
+| `inside` | The whole cell fits within the shape | Conservative interior coverage; boundary areas may be missed |
+| `center` | Its center is inside the shape | A balanced approximation; can both miss and spill |
+| `intersect` | It touches or overlaps the shape | Candidate filtering; includes extra area outside the boundary |
+
+Coverings are **compact**: larger cells are retained when fully inside the shape.
+Precision is the maximum geohash length, not the length of every returned ID.
+When matching fixed-length point hashes, compare their prefixes against the
+covering. A plain equality join will miss points covered by shorter IDs. For exact
+membership, use intersect coverage to select candidates, then apply an exact
+point-in-polygon predicate.
+
+The playground accepts WGS84 Polygon/MultiPolygon GeoJSON (longitude, latitude).
+Its area metrics are spherical approximations, not survey measurements. The
+Paris and France presets are simplified project benchmark fixtures, and the
+delivery zone is synthetic. Use your own authoritative boundary for real work.
+Antimeridian-crossing shapes are not supported by the playground.
+
+The demo caps input and normalized shapes at 3,000 positions and output at 20,000
+cells. It stops work that exceeds its time or traversal budget. The API permits
+10,000 input/normalized positions and 1,000 geometry components, with bounded
+collection union work, 100,000 cell visits, and 50,000 output cells. For complex
+boundaries, simplify your source geometry or lower the precision.
+API JSON payloads are limited to 64 nested arrays/objects, independently of the
+Python interpreter's recursion limit.
 
 For example, starting from a geopoint, you can produce a geohashed city boundary:
 
@@ -64,6 +106,20 @@ code, human-readable message, and HTTP status:
     "status": 400
   }
 }
+```
+
+Every coverage endpoint accepts optional `mode=inside`, `mode=center`, or
+`mode=intersect`. POST requests also accept `mode` in a form field or JSON envelope;
+query parameters take precedence. Explicit modes strictly follow their inclusion
+rule and can return no cells. Omitting `mode` preserves the legacy center behavior,
+including a representative-cell fallback for tiny shapes.
+
+For example, cover a local polygon without geocoding:
+
+```bash
+curl -X POST 'http://127.0.0.1:5000/geohashes/geojson?precision=6&mode=intersect' \
+  -H 'Content-Type: application/json' \
+  --data-binary @region.geojson
 ```
 
 ### `GET /`
@@ -234,3 +290,23 @@ Use JSON output for trend collection:
 ```bash
 uv run python benchmarks/benchmark_cover.py --json
 ```
+
+## Playground development
+
+The demo is a static site in `docs/`, ready for GitHub Pages. Its geometry
+worker runs locally in the browser; the Flask API is not required to use the demo.
+
+To publish after merging, enable GitHub Pages for the repository using the
+`master` branch and `/docs` folder. The `.nojekyll` file keeps the site static.
+
+```bash
+python3 -m http.server 8080 --directory docs
+```
+
+Open `http://localhost:8080/`. See [TESTING.md](TESTING.md) for browser-engine tests
+and API regression checks.
+
+## License
+
+MIT. Bundled browser dependencies retain their own license notices in
+`docs/vendor/`.

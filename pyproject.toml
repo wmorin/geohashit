@@ -4,9 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "geohashit"
-version = "0.1.3"
+version = "0.2.0"
 description = "Flask API for converting places and GeoJSON shapes into geohash coverage polygons."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13,<3.15"
 dependencies = [
     "Flask==3.1.3",
@@ -18,6 +19,7 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/wmorin/geohashit"
+Homepage = "https://wmorin.github.io/geohashit/"
 
 [dependency-groups]
 dev = [

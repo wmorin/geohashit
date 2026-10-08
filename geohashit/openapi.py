@@ -32,6 +32,22 @@ def precision_parameter(required):
     }
 
 
+def mode_parameter():
+    return {
+        'name': 'mode',
+        'in': 'query',
+        'required': False,
+        'description': (
+            'Coverage rule: center keeps cells whose center is strictly inside the shape; '
+            'inside keeps only fully contained cells; intersect keeps cells touching the shape. '
+            'Fully contained cells may use shorter geohash prefixes. Explicit modes may return '
+            'an empty array. Omitting mode preserves legacy center coverage with a '
+            'representative-point fallback for small shapes.'
+        ),
+        'schema': {'$ref': '#/components/schemas/CoverageMode'},
+    }
+
+
 def boolean_parameter(name, description):
     return {
         'name': name,
@@ -152,6 +168,7 @@ OPENAPI_SPEC = {
                         'schema': {'type': 'string', 'enum': ['city', 'country']},
                     },
                     precision_parameter(required=True),
+                    mode_parameter(),
                     boolean_parameter(
                         'simplify',
                         'Return a dissolved geometry instead of one polygon per geohash.',
@@ -173,6 +190,7 @@ OPENAPI_SPEC = {
                         True,
                     ),
                     precision_parameter(required=False),
+                    mode_parameter(),
                 ],
                 'responses': geohash_multipolygon_responses(),
             },
@@ -184,6 +202,7 @@ OPENAPI_SPEC = {
                 'parameters': [
                     query_parameter('geohash', 'Valid geohash.', 'string', True),
                     precision_parameter(required=False),
+                    mode_parameter(),
                 ],
                 'responses': geohash_multipolygon_responses(),
             },
@@ -192,7 +211,7 @@ OPENAPI_SPEC = {
             'post': {
                 'tags': ['geohashes'],
                 'summary': 'Return geohashes covering submitted GeoJSON',
-                'parameters': [precision_parameter(required=False)],
+                'parameters': [precision_parameter(required=False), mode_parameter()],
                 'requestBody': geojson_request_body(),
                 'responses': {
                     '200': json_response('Geohash coverage.', 'GeohashList'),
@@ -204,7 +223,7 @@ OPENAPI_SPEC = {
             'post': {
                 'tags': ['multipolygons'],
                 'summary': 'Return geohash cells as a GeoJSON multipolygon',
-                'parameters': [precision_parameter(required=False)],
+                'parameters': [precision_parameter(required=False), mode_parameter()],
                 'requestBody': geojson_request_body(),
                 'responses': geohash_multipolygon_responses(include_not_found=False),
             },
@@ -244,7 +263,13 @@ OPENAPI_SPEC = {
             },
             'GeoJSON': {
                 'type': 'object',
-                'description': 'GeoJSON geometry, feature, or feature collection.',
+                'description': (
+                    'Valid GeoJSON geometry, feature, or feature collection with finite '
+                    'WGS84 longitude/latitude coordinates. Maximum 10,000 source and normalized positions '
+                    'and 1,000 geometry components (including polygon holes). Collection unions are '
+                    'incremental; potentially complex overlays are rejected before computation. '
+                    'Coverage is planar: split antimeridian-crossing shapes before submitting.'
+                ),
             },
             'GeoJSONEnvelope': {
                 'type': 'object',
@@ -252,6 +277,7 @@ OPENAPI_SPEC = {
                 'properties': {
                     'geojson': {'$ref': '#/components/schemas/GeoJSON'},
                     'precision': {'$ref': '#/components/schemas/Precision'},
+                    'mode': {'$ref': '#/components/schemas/CoverageMode'},
                 },
             },
             'GeoJSONForm': {
@@ -263,6 +289,7 @@ OPENAPI_SPEC = {
                         'description': 'GeoJSON encoded as a JSON string.',
                     },
                     'precision': {'$ref': '#/components/schemas/Precision'},
+                    'mode': {'$ref': '#/components/schemas/CoverageMode'},
                 },
             },
             'GeohashList': {
@@ -287,6 +314,11 @@ OPENAPI_SPEC = {
                 'minimum': 1,
                 'maximum': 8,
                 'default': 5,
+            },
+            'CoverageMode': {
+                'type': 'string',
+                'enum': ['center', 'inside', 'intersect'],
+                'description': 'Explicit coverage rule. Maximum 50,000 emitted cells and 100,000 cell visits.',
             },
             'Error': {
                 'type': 'object',
